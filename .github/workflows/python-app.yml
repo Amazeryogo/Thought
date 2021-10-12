@@ -34,3 +34,7 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+        
+        
+- name: wemake-python-styleguide
+  uses: wemake-services/wemake-python-styleguide@0.15.3
