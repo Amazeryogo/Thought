@@ -1,14 +1,11 @@
 from flask import Flask, flash, render_template, request, session, make_response,  redirect, url_for
 from forms import *
 import os
-import flask_login
-import bcrypt
 from flask import Flask
 from flask_pymongo import PyMongo
 from flask_login import LoginManager
 from flask import render_template, url_for, request, flash
 from flask import request
-from werkzeug.urls import url_parse
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
@@ -99,6 +96,7 @@ class User(UserMixin):
 
 @app.route('/')
 @app.route('/home')
+@login_required() 
 def home():
     return render_template('home.html')
 
