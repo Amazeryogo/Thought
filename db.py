@@ -12,7 +12,7 @@ def login_check(username, password):
 	user = userdb.find_one({"name":username})
 	p = user['password']
 	x = check_password_hash(p, password)
-	return x
+	return str(user['id'])
 
 	
 
@@ -26,6 +26,7 @@ def add_user(username, password, email,invite_code):
 	if check == None:
 		p = bruh(password)
 		x = {
+			'id' : id,
 			"name" : username,
 			"password" : p,
 			"invite_code" : invite_code,
