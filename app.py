@@ -9,13 +9,14 @@ from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
+from api import *
 
-app = Flask(__name__)
+appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
-app.config['SECRET_KEY'] = SECRET_KEY
-app.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB" 
-mongo = PyMongo(app)
-login = LoginManager(app)
+appx.config['SECRET_KEY'] = SECRET_KEY
+appx.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB" 
+mongo = PyMongo(appx)
+login = LoginManager(appx)
 db = mongo.db
 
 @login.user_loader
@@ -94,13 +95,13 @@ class User(UserMixin):
         db.userdb.insert( self.json())
 
 
-@app.route('/')
-@app.route('/home')
-@login_required() 
+@appx.route('/')
+@appx.route('/home')
+#@login_required(user) 
 def home():
     return render_template('home.html')
 
-@app.route("/register", methods=['GET', 'POST'])
+@appx.route("/register", methods=['GET', 'POST'])
 def register():
     form = CreateUserForm()
     if form.validate_on_submit():
@@ -119,7 +120,7 @@ def register():
     return render_template('create.html', title='Register', form=form)
 
 
-@app.route("/login", methods=['GET', 'POST'])
+@appx.route("/login", methods=['GET', 'POST'])
 def login():
     form = LoginForm()
     if form.validate_on_submit():
@@ -134,7 +135,50 @@ def login():
         else:
             flash('Login Unsuccessful. Please check email and password', 'danger')
     return render_template('login.html', title='Login', form=form)
-@app.route('/logout')
+
+@appx.route('/logout')
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+
+@appx.route('/api/about')
+def api_about():
+    uhh = {
+        "name" : "Thought",
+        "version": "1.0"
+    }
+    return str(uhh)
+
+@appx.route("/api/register", methods=['GET', 'POST'])
+def registerapi():
+    x = request.args
+    username = x.get("username")
+    email = x.get("email")
+    invcode = x.get("invcode")
+    password = generate_password_hash(x.get("password"))#.decode('utf-8')
+    find_user =  User.get_by_email(email)
+    if find_user is None:
+        User.register(username, email, password,invcode)
+        return "{\"comment\" : \"OK!\"}" 
+    else:
+        return "{\"comment\" : \"USER ALREADY EXISTS, ERROR 404\"}"
+
+@appx.route("/api/login", methods=['GET', 'POST'])
+def loginapi():
+        x = request.args
+        username = x.get("username")
+        password = x.get("password")
+        remember = x.get("remember")
+        find_user = db.userdb.find_one({"username": username})
+        if User.login_valid(username, password):
+            loguser = User(find_user["_id"], find_user["username"], find_user["password"], find_user["invcode"])
+            login_user(loguser, remember=remember)
+            return "{\"comment\" : \"LOGGED IN " + username + " \"}" 
+        else:
+            return "{\"comment\" : \"ERROR 404, please try again\"} "
+
+@appx.route('/api/logout')
+def logoutapi():
+    logout_user()
+    return "{\"comment\" : \" LOGGED OUT \"}"
