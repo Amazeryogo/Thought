@@ -9,7 +9,7 @@ from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
-from api import *
+
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -17,15 +17,11 @@ appx.config['SECRET_KEY'] = SECRET_KEY
 appx.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB" 
 mongo = PyMongo(appx)
 login = LoginManager(appx)
+login.login_view = '/login'
+appx.config['TESTING'] = False
 db = mongo.db
 
-@login.user_loader
-def load_user(user_id):
-    user =User.get_by_id(user_id)
-    if user is not None:
-        return User(user["_id"])
-    else:
-        return None
+
 
 class User(UserMixin):
 
@@ -92,12 +88,15 @@ class User(UserMixin):
         }
 
     def save_to_mongo(self):
-        db.userdb.insert( self.json())
+        db.userdb.insert(self.json())
+
+@login.user_loader
+def load_user(user_id):
+    return User.get_by_id(user_id)
 
 
 @appx.route('/')
 @appx.route('/home')
-#@login_required(user) 
 def home():
     return render_template('home.html')
 
@@ -124,17 +123,18 @@ def register():
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        username = request.form["username"]
-        password = request.form["password"]
-        find_user = db.userdb.find_one({"username": username})
-        if User.login_valid(username, password):
-            loguser = User(find_user["_id"], find_user["username"], find_user["password"], find_user["invcode"])
-            login_user(loguser, remember=form.remember_me.data)
-            flash('You have been logged in!', 'success')
-            return redirect(url_for('home'))
-        else:
-            flash('Login Unsuccessful. Please check email and password', 'danger')
+        if request.method == 'POST':
+            username = request.form["username"]
+            password = request.form["password"]
+            user = User.get_by_username(username)
+            if user is not None and User.login_valid(username, password):
+                login_user(user)
+                flash(f'You are now logged in as {form.username.data}!', 'success')
+                return redirect(url_for('home'))
+            else:
+                flash(f'Invalid login!', 'danger')
     return render_template('login.html', title='Login', form=form)
+
 
 @appx.route('/logout')
 def logout():
@@ -166,19 +166,23 @@ def registerapi():
 
 @appx.route("/api/login", methods=['GET', 'POST'])
 def loginapi():
-        x = request.args
-        username = x.get("username")
-        password = x.get("password")
-        remember = x.get("remember")
-        find_user = db.userdb.find_one({"username": username})
-        if User.login_valid(username, password):
-            loguser = User(find_user["_id"], find_user["username"], find_user["password"], find_user["invcode"])
-            login_user(loguser, remember=remember)
-            return "{\"comment\" : \"LOGGED IN " + username + " \"}" 
-        else:
-            return "{\"comment\" : \"ERROR 404, please try again\"} "
+    x = request.args
+    username = x.get("username")
+    password = x.get("password")
+    user = User.get_by_username(username)
+    if user is not None and User.login_valid(username, password):
+        return "{\"comment\" : \"OK!\"}" 
+    else:
+        return "{\"comment\" : \"INVALID LOGIN, ERROR 404\"}"
+        
 
 @appx.route('/api/logout')
 def logoutapi():
     logout_user()
     return "{\"comment\" : \" LOGGED OUT \"}"
+
+# a simple page that returns the user's personal information
+@appx.route('/user')
+@login_required
+def user():
+    return render_template('user.html', user=current_user)
