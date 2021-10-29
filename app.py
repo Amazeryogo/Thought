@@ -9,6 +9,7 @@ from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
+from models import *
 
 
 appx = Flask(__name__)
@@ -22,7 +23,6 @@ appx.config['TESTING'] = False
 db = mongo.db
 
 
-
 class User(UserMixin):
 
     def __init__(self, username, email, password,invcode, _id=None,):
@@ -32,6 +32,8 @@ class User(UserMixin):
         self.password = password
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.posts = db.postdb.find({"user_id": self._id})
+    
 
     def is_authenticated(self):
         return True
@@ -89,6 +91,36 @@ class User(UserMixin):
 
     def save_to_mongo(self):
         db.userdb.insert(self.json())
+
+class Post:
+    def __init__(self, title, content, user_id, _id=None):
+        self.title = title
+        self.content = content
+        self.user_id = user_id
+        self._id = uuid.uuid4().hex if _id is None else _id
+
+    def json(self):
+        return {
+            "title": self.title,
+            "content": self.content,
+            "user_id": self.user_id,
+            "_id": self._id
+        }
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.postdb.find_one({"_id": _id})
+        if data is not None:
+            return cls(**data)
+
+    @classmethod
+    def get_by_user_id(cls, user_id):
+        data = db.postdb.find({"user_id": user_id})
+        if data is not None:
+            return cls(**data)
+
+    def save_to_mongo(self):
+        db.postdb.insert(self.json())
 
 @login.user_loader
 def load_user(user_id):
@@ -181,8 +213,32 @@ def logoutapi():
     logout_user()
     return "{\"comment\" : \" LOGGED OUT \"}"
 
-# a simple page that returns the user's personal information
-@appx.route('/user')
+@appx.route("/user")
 @login_required
-def user():
-    return render_template('user.html', user=current_user)
+def user2():
+    posts = db.postdb.find({"user_id": current_user._id})
+    return render_template('user.html', user=current_user,posts=posts)
+
+@appx.route("/<username>")
+@login_required
+def user(username):
+    user = User.get_by_username(username)
+    posts = db.postdb.find({"user_id": user._id})
+    if user is None:
+        user = "$0$ NOT FOUND"
+    return render_template('user.html', user=user,posts=posts)
+
+@appx.route("/createnewpost", methods=['GET', 'POST'])
+@login_required
+def createnewpost():
+    form = PostForm()
+    if form.validate_on_submit():
+        if request.method == 'POST':
+            title = request.form["title"]
+            content = request.form["content"]
+            user_id = current_user._id
+            new_post = Post(title, content, user_id)
+            new_post.save_to_mongo()
+            flash(f'Your post has been created!', 'success')
+            return redirect(url_for('user2'))
+    return render_template('create_post.html', title='New Post', form=form)

@@ -6,9 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 </head>
+<style>
+table, th, td {
+  border:1px solid black;
+  text-align: center;
+  fill:lightblue;
+}
+</style>
 <body>
     <h1>{{user.username}}</h1>
-    <p>{{user.email}}</p>
+    <p>Email: {{user.email}}</p>
+    <p>Latest Posts:</p>
+    {% for post in posts %}
+        <table style="width: 200px;">
+        <tr>
+            <th>{{post.title}}</th>
+        </tr>
+        <tr>
+            <td>{{post.content}}</td>
+        </tr>
+        </table>
+    {%endfor %}
+
+
     
     
 </body>
