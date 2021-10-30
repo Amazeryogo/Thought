@@ -25,14 +25,18 @@ db = mongo.db
 
 class User(UserMixin):
 
-    def __init__(self, username,aboutme, email, password,invcode, _id=None,):
+    def __init__(self, username, email, password,invcode, _id=None,aboutme=None):
+        if aboutme is None:
+            aboutme = "New to Thought"
+            self.aboutme = aboutme
+        else:
+            self.aboutme = aboutme
 
         self.username = username
         self.email = email
         self.password = password
         self.invcode = invcode
-        self._id = uuid.uuid4().hex if _id is None else _id
-        self.aboutme = aboutme
+        self._id = uuid.uuid4().hex if _id is None else _id 
         self.posts = db.postdb.find({"user_id": self._id})
     
 
@@ -88,10 +92,14 @@ class User(UserMixin):
         user = cls.get_by_email(email)
         if user is None:
             aboutme = "No About Me"
-            new_user = cls( username, email,aboutme, password, invcode)
-            new_user.save_to_mongo()
-            session['email'] = email
-            return True
+            user = cls.get_by_username(username)
+            if username is None:
+                new_user = cls( username, email,aboutme, password, invcode)
+                new_user.save_to_mongo()
+                session['email'] = email
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -163,7 +171,7 @@ class Post:
             return cls(**data)
 
     def save_to_mongo(self):
-        db.postdb.insert(self.json())
+        db.postdb.insert_one(self.json())
 
 @login.user_loader
 def load_user(user_id):
@@ -205,7 +213,8 @@ def login():
             if user is not None and User.login_valid(username, password):
                 login_user(user)
                 flash(f'You are now logged in as {form.username.data}!', 'success')
-                return redirect(url_for('home'))
+                return redirect('/me')
+                
             else:
                 flash(f'Invalid login!', 'danger')
     return render_template('login.html', title='Login', form=form)

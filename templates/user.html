@@ -1,32 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About {{user.username}}</title>
-</head>
+  {% extends "base.html" %}
+
+{% block content %}
 <style>
-table, th, td {
-  border:1px solid black;
-  text-align: center;
-  fill:lightblue;
+    div {
+  margin: auto;
+  width: 50%;
+  padding: 10px;
+  border: 5px solid lightblue;
+  justify-content: center;
 }
 </style>
-<body>
     <h1 style="text-align: center">{{user.username}}</h1>
-    <h3 style="text-align: center">Email: {{user.email}}</h3><br/>
-    <>{{user.aboutme}}</p>
+    <h4 style="text-align: center">@{{user.username}}</h4>
+    <h3 style="text-align: center">{{user.aboutme}}</h3>
+    {% if user == current_user %}
+    <p><a href="/set/aboutme">Edit your profile</a></p>
+    {% endif %}
     <p>Latest Posts:</p>
     {% for post in posts %}
-        <table style="width: 200px;">
-        <tr>
-            <th>{{post.title}}</th>
-        </tr>
-        <tr>
-            <td>{{post.content}}</td>
-        </tr>
-        </table>
-    {%endfor %}    
-</body>
-</html>
+    <div class="col-md-4 col-lg-offset-4">
+        <h3 style="text-align: center">{{post.title}}</h3> 
+        <h4 style="text-align: center">by {{post.username}}</h4>
+        <p style="text-align: center ">{{post.content}}</p>
+    </div>
+    {%endfor %}
+{% endblock %}
