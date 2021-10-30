@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>About {{user.username}}</title>
 </head>
 <style>
 table, th, td {
@@ -14,8 +14,9 @@ table, th, td {
 }
 </style>
 <body>
-    <h1>{{user.username}}</h1>
-    <p>Email: {{user.email}}</p>
+    <h1 style="text-align: center">{{user.username}}</h1>
+    <h3 style="text-align: center">Email: {{user.email}}</h3><br/>
+    <>{{user.aboutme}}</p>
     <p>Latest Posts:</p>
     {% for post in posts %}
         <table style="width: 200px;">
@@ -26,10 +27,6 @@ table, th, td {
             <td>{{post.content}}</td>
         </tr>
         </table>
-    {%endfor %}
-
-
-    
-    
+    {%endfor %}    
 </body>
 </html>

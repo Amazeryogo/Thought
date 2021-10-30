@@ -9,7 +9,7 @@ from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
-from models import *
+from hashlib import md5
 
 
 appx = Flask(__name__)
@@ -25,13 +25,14 @@ db = mongo.db
 
 class User(UserMixin):
 
-    def __init__(self, username, email, password,invcode, _id=None,):
+    def __init__(self, username,aboutme, email, password,invcode, _id=None,):
 
         self.username = username
         self.email = email
         self.password = password
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.aboutme = aboutme
         self.posts = db.postdb.find({"user_id": self._id})
     
 
@@ -49,6 +50,18 @@ class User(UserMixin):
         data = db.userdb.find_one({"username": username})
         if data is not None:
             return cls(**data)
+        
+    @classmethod
+    def addaboutme(cls, username, aboutme):
+        db.userdb.update_one({"username": username}, {"$set": {"aboutme": aboutme}})
+
+    @classmethod
+    def get_aboutme(cls, username):
+        data = db.userdb.find_one({"username": username})
+        if data is not None:
+            return data["aboutme"]
+        else:
+            return "No About Me"
 
     @classmethod
     def get_by_email(cls, email):
@@ -62,6 +75,7 @@ class User(UserMixin):
         if data is not None:
             return cls(**data)
 
+
     @staticmethod
     def login_valid(username, password):
         verify_user = User.get_by_username(username)
@@ -73,7 +87,8 @@ class User(UserMixin):
     def register(cls, username, email, password, invcode):
         user = cls.get_by_email(email)
         if user is None:
-            new_user = cls( username, email, password, invcode)
+            aboutme = "No About Me"
+            new_user = cls( username, email,aboutme, password, invcode)
             new_user.save_to_mongo()
             session['email'] = email
             return True
@@ -85,18 +100,45 @@ class User(UserMixin):
             "username": self.username,
             "email": self.email,
             "_id": self._id,
+            "aboutme":self.aboutme,
             "invcode" : self.invcode,
             "password": self.password
         }
 
+    def avatar(self):
+        digest = md5(self.email.lower().encode('utf-8')).hexdigest()
+        return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
+            digest, 128)
+
     def save_to_mongo(self):
         db.userdb.insert(self.json())
 
+class Messages:
+        def __init__(self, sender, receiver,timestamp,message, _id=None):
+            self.sender = sender
+            self.receiver = receiver
+            self.timestamp = timestamp
+            self.message = message
+            self._id = uuid.uuid4().hex if _id is None else _id
+
+        def json(self):
+            return {
+                "sender": self.sender,
+                "receiver": self.receiver,
+                "message": self.message,
+                "timestamp": self.timestamp,
+                "_id": self._id
+            }
+
+        def save_to_mongo(self):
+            db.messagesdb.insert(self.json())
+       
 class Post:
-    def __init__(self, title, content, user_id, _id=None):
+    def __init__(self, username,title, content, user_id, _id=None):
         self.title = title
         self.content = content
         self.user_id = user_id
+        self.username = username
         self._id = uuid.uuid4().hex if _id is None else _id
 
     def json(self):
@@ -104,7 +146,8 @@ class Post:
             "title": self.title,
             "content": self.content,
             "user_id": self.user_id,
-            "_id": self._id
+            "_id": self._id,
+            "username": self.username
         }
 
     @classmethod
@@ -213,32 +256,47 @@ def logoutapi():
     logout_user()
     return "{\"comment\" : \" LOGGED OUT \"}"
 
-@appx.route("/user")
-@login_required
-def user2():
-    posts = db.postdb.find({"user_id": current_user._id})
-    return render_template('user.html', user=current_user,posts=posts)
 
 @appx.route("/<username>")
 @login_required
 def user(username):
-    user = User.get_by_username(username)
-    posts = db.postdb.find({"user_id": user._id})
-    if user is None:
-        user = "$0$ NOT FOUND"
-    return render_template('user.html', user=user,posts=posts)
+    if username == "me":
+        posts = db.postdb.find({"user_id": current_user._id})
+        return render_template('user.html', user=current_user,posts=posts)
+    else:
+        user = User.get_by_username(username)
+        aboutme = User.get_aboutme(username)
+        if user is None:
+            posts = []
+        else:
+            posts = db.postdb.find({"user_id": user._id})
+    return render_template('user.html', user=user,posts=posts,aboutme=aboutme)
 
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
-def createnewpost():
+def createnewpost2():
     form = PostForm()
     if form.validate_on_submit():
         if request.method == 'POST':
             title = request.form["title"]
             content = request.form["content"]
             user_id = current_user._id
-            new_post = Post(title, content, user_id)
+            new_post = Post(current_user.username, title, content, user_id)
             new_post.save_to_mongo()
             flash(f'Your post has been created!', 'success')
-            return redirect(url_for('user2'))
+            return redirect('/me')
     return render_template('create_post.html', title='New Post', form=form)
+
+@appx.route("/set/aboutme", methods=['GET', 'POST'])
+@login_required
+def setaboutme():
+    form = AboutMeForm()
+    if form.validate_on_submit():
+        if request.method == 'POST':
+            aboutme = request.form["content"]
+            User.addaboutme(current_user.username, aboutme)
+            flash(f'Your about me has been set!', 'success')
+            return redirect('/me')
+    return render_template('setaboutme.html', title='Set About Me', form=form)
+
+appx.run(debug=True)
