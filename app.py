@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
 from hashlib import md5
-
+from  datetime import datetime as bruh
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -142,11 +142,12 @@ class Messages:
             db.messagesdb.insert(self.json())
        
 class Post:
-    def __init__(self, username,title, content, user_id, _id=None):
+    def __init__(self, username,title, content,timestamp, user_id, _id=None):
         self.title = title
         self.content = content
         self.user_id = user_id
         self.username = username
+        self.timestamp = timestamp
         self._id = uuid.uuid4().hex if _id is None else _id
 
     def json(self):
@@ -155,6 +156,7 @@ class Post:
             "content": self.content,
             "user_id": self.user_id,
             "_id": self._id,
+            "timestamp": self.timestamp,
             "username": self.username
         }
 
@@ -277,6 +279,7 @@ def user(username):
         aboutme = User.get_aboutme(username)
         if user is None:
             posts = []
+            return redirect('/error/user')
         else:
             posts = db.postdb.find({"user_id": user._id})
     return render_template('user.html', user=user,posts=posts,aboutme=aboutme)
@@ -290,22 +293,43 @@ def createnewpost2():
             title = request.form["title"]
             content = request.form["content"]
             user_id = current_user._id
-            new_post = Post(current_user.username, title, content, user_id)
+            new_post = Post(current_user.username, title, content,bruh.now().strftime('%Y-%m-%d %H:%M:%S')
+, user_id)
             new_post.save_to_mongo()
             flash(f'Your post has been created!', 'success')
             return redirect('/me')
     return render_template('create_post.html', title='New Post', form=form)
 
+@appx.route("/deletepost", methods=['GET', 'POST'])
+@login_required
+def deletepost():
+    x = request.args
+    post_id = x.get("post_id")
+    db.postdb.delete_one({"_id": post_id, "username": current_user.username})
+    return redirect('/me')
+
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
 def setaboutme():
+    return redirect('/settings')
+
+
+@appx.route('/error/user')
+@login_required
+def error():
+    return render_template('404_user.html')
+
+@appx.route("/settings" , methods=['GET', 'POST'])
+@login_required
+def settings():
     form = AboutMeForm()
+    form.content.data = User.get_aboutme(current_user.username)    
     if form.validate_on_submit():
         if request.method == 'POST':
             aboutme = request.form["content"]
             User.addaboutme(current_user.username, aboutme)
             flash(f'Your about me has been set!', 'success')
             return redirect('/me')
-    return render_template('setaboutme.html', title='Set About Me', form=form)
+    return render_template('settings.html', title='Set About Me', form=form)
 
 appx.run(debug=True)

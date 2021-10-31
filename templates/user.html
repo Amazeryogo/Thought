@@ -11,17 +11,22 @@
 }
 </style>
     <h1 style="text-align: center">{{user.username}}</h1>
-    <h4 style="text-align: center">@{{user.username}}</h4>
-    <h3 style="text-align: center">{{user.aboutme}}</h3>
+    <h3 style="text-align: center">About User:</h3>
+    <p style="text-align: center">{{user.aboutme}}</p>
     {% if user == current_user %}
-    <p><a href="/set/aboutme">Edit your profile</a></p>
-    {% endif %}
-    <p>Latest Posts:</p>
+    <p style="text-align: center"><a href="/set/aboutme">Settings</a></p>
+    {% endif %} 
     {% for post in posts %}
-    <div class="col-md-4 col-lg-offset-4">
-        <h3 style="text-align: center">{{post.title}}</h3> 
-        <h4 style="text-align: center">by {{post.username}}</h4>
-        <p style="text-align: center ">{{post.content}}</p>
-    </div>
-    {%endfor %}
-{% endblock %}
+    <div style="width: 40%; text-align: center;">
+    <h3 style="text-align: center">{{ post.title }}</h3>
+    <h5 style="text-align: center">by {{ post.username}} at {{post.timestamp }}</h5>
+    <p>{{ post.content}}</p>
+    {% if user == current_user %}
+    <p style="text-align: center"><a href="/deletepost?post_id={{ post._id }}">🗑️Delete Post🗑️</a></p>
+    {% endif %}
+  </div>
+    {% endfor %}
+    {% if user == current_user %}
+    <h5 style="text-align: center"><a href="/createnewpost">Create a new post</a></h5>
+    {% endif %}
+  {% endblock %}
