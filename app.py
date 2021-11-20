@@ -1,3 +1,4 @@
+
 from flask import Flask, flash, render_template, request, session, make_response,  redirect, url_for
 from forms import *
 import os
@@ -79,29 +80,35 @@ class User(UserMixin):
         if data is not None:
             return cls(**data)
 
+    @classmethod
+    def change_email(cls,username,email):
+        existing_user = db.userdb.find_one({"email": email})
+        if existing_user is None:
+            db.userdb.update_one({"username": username}, {"$set": {"email": email}})
+            return True
+        else:
+            return False
+
 
     @staticmethod
     def login_valid(username, password):
         verify_user = User.get_by_username(username)
         if verify_user is not None:
             return check_password_hash(verify_user.password, password)
-        return False
+        return True
 
+    # rewrite register function
     @classmethod
     def register(cls, username, email, password, invcode):
-        user = cls.get_by_email(email)
-        if user is None:
-            aboutme = "No About Me"
-            user = cls.get_by_username(username)
-            if username is None:
-                new_user = cls( username, email,aboutme, password, invcode)
-                new_user.save_to_mongo()
-                session['email'] = email
-                return True
-            else:
-                return False
+        user = User.get_by_username(username)
+        user_by_email = User.get_by_email(email)
+        if user is None and user_by_email is None:
+            new_user = User(username, email, password, invcode)
+            new_user.save_to_mongo()
+            return True
         else:
             return False
+
 
     def json(self):
         return {
@@ -183,7 +190,8 @@ def load_user(user_id):
 @appx.route('/')
 @appx.route('/home')
 def home():
-    return render_template('home.html')
+    p = db.postdb.find()
+    return render_template('home.html', posts=p)
 
 @appx.route("/register", methods=['GET', 'POST'])
 def register():
@@ -314,22 +322,29 @@ def setaboutme():
     return redirect('/settings')
 
 
-@appx.route('/error/user')
-@login_required
-def error():
-    return render_template('404_user.html')
+
 
 @appx.route("/settings" , methods=['GET', 'POST'])
 @login_required
 def settings():
     form = AboutMeForm()
+    form.content.data = User.get_aboutme(current_user.username)
+    form.email.data = current_user.email
     form.content.data = User.get_aboutme(current_user.username)    
     if form.validate_on_submit():
         if request.method == 'POST':
             aboutme = request.form["content"]
+            email = request.form["email"]
             User.addaboutme(current_user.username, aboutme)
-            flash(f'Your about me has been set!', 'success')
+            x = User.change_email(current_user.username, email)
+            if x == False:
+                flash(f'Email already exists!', 'danger')
+            flash(f'Your changes have been saved', 'success')
             return redirect('/me')
     return render_template('settings.html', title='Set About Me', form=form)
+
+@appx.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html')
 
 appx.run(debug=True)

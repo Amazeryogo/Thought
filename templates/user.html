@@ -1,32 +1,38 @@
   {% extends "base.html" %}
 
 {% block content %}
-<style>
-    div {
-  margin: auto;
-  width: 50%;
-  padding: 10px;
-  border: 5px solid lightblue;
-  justify-content: center;
-}
-</style>
-    <h1 style="text-align: center">{{user.username}}</h1>
-    <h3 style="text-align: center">About User:</h3>
-    <p style="text-align: center">{{user.aboutme}}</p>
-    {% if user == current_user %}
-    <p style="text-align: center"><a href="/set/aboutme">Settings</a></p>
-    {% endif %} 
+    <table id="user">
+      <tr valign="top">
+        <td>
+          <h1>User: {{ user.username }}</h1>
+          Email: {{ user.email }}<br>
+          Aboutme: {{user.aboutme}}
+          {% if user == current_user %} <br/>
+          <a href="/set/aboutme"><button>Settings</button></a>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+    <hr>
     {% for post in posts %}
-    <div style="width: 40%; text-align: center;">
-    <h3 style="text-align: center">{{ post.title }}</h3>
-    <h5 style="text-align: center">by {{ post.username}} at {{post.timestamp }}</h5>
-    <p>{{ post.content}}</p>
-    {% if user == current_user %}
-    <p style="text-align: center"><a href="/deletepost?post_id={{ post._id }}">🗑️Delete Post🗑️</a></p>
-    {% endif %}
-  </div>
+      <table id="post">
+        <tr valign="top">
+          <td>
+            <h3>{{post.title}}</h3> by {{post.username}} on {{post.timestamp}} <br/>
+            <br/>
+            {{post.content}} <br/>
+            {% if user == current_user %}
+            <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a>
+            {% endif %}
+          </td>
+        </tr>
+      </table>
     {% endfor %}
+    <br/>
+    <hr>
     {% if user == current_user %}
-    <h5 style="text-align: center"><a href="/createnewpost">Create a new post</a></h5>
+    <div>
+      <a href="/createnewpost"><button class="button">Create Post</button></a>
+    </div>
     {% endif %}
   {% endblock %}

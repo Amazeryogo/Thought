@@ -1,8 +1,30 @@
-  {% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
+
         <h1 style="text-align: center">Thought </h1>
         <h3 style="text-align: center">By Suvid</h3>
-        <h1 style="text-align: center">This is a intro, too lazy to write it, i'll do it later</h1>
+        <h5 style="text-align: center">Latest Posts:</h5>
+        {% for post in posts %}
+        <table id="post">
+          <tr valign="top">
+            <td>
+              <h3>{{post.title}}</h3> by {{post.username}} on {{post.timestamp}} <br />
+              <br />
+              {{post.content}} <br />
+              {% if user == current_user %}
+              <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+        {% endfor %}
+        <br />
+        <hr>
+        {% if user == current_user %}
+        <div>
+          <a href="/createnewpost"><button class="button">Create Post</button></a>
+        </div>
+        {% endif %}
 
 {% endblock %}

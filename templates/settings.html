@@ -8,6 +8,10 @@
             {{ form.content.label }}<br>
             {{ form.content(size=32) }}<br>
         </p>
+        <p>
+            {{form.email.label}}<br>
+            {{form.email(size=32)}}<br>
+        </p>
         <p>{{ form.submit() }}</p>
     <a href="/logout">Logout</a>
 {% endblock %}

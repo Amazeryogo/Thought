@@ -21,5 +21,6 @@ class PostForm(FlaskForm):
     submit = SubmitField('Post')
 
 class AboutMeForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired()])
     content = TextAreaField('Content', validators=[DataRequired()])
     submit = SubmitField('Update')
