@@ -2,11 +2,9 @@
 from flask import Flask, flash, render_template, request, session, make_response,  redirect, url_for
 from forms import *
 import os
-from flask import Flask
-from flask_pymongo import PyMongo
+from turbo_flask import Turbo
+from flask_pymongo import *
 from flask_login import LoginManager
-from flask import render_template, url_for, request, flash
-from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
 import uuid
@@ -22,7 +20,7 @@ login = LoginManager(appx)
 login.login_view = '/login'
 appx.config['TESTING'] = False
 db = mongo.db
-
+turb = Turbo(appx)
 
 class User(UserMixin):
 
@@ -120,10 +118,14 @@ class User(UserMixin):
             "password": self.password
         }
 
-    def avatar(self):
-        digest = md5(self.email.lower().encode('utf-8')).hexdigest()
-        return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
-            digest, 128)
+    @classmethod
+    def avatar(self,username):
+        x = db.userdb.find_one({"username": username})
+        if x is not None:
+            email = x["email"]
+            digest = md5(email.lower().encode('utf-8')).hexdigest()
+            return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
+                digest, 128)
 
     def save_to_mongo(self):
         db.userdb.insert(self.json())
@@ -144,6 +146,22 @@ class Messages:
                 "timestamp": self.timestamp,
                 "_id": self._id
             }
+
+        # a function that compiles a chat between two users and sort them by timestamps
+        @classmethod
+        def get_chat(cls, user1, user2):
+            chats = db.messagesdb.find({"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
+            # sort using timestamps
+            chats = list(chats)
+            chats.sort(key=lambda x: x["timestamp"])
+            return [cls(**chat) for chat in chats]
+        
+        @classmethod
+        def send_message(cls, sender, receiver, message):
+            timestamp = bruh.now()
+            new_message = cls(sender, receiver, timestamp, message)
+            new_message.save_to_mongo()
+            return new_message.json()
 
         def save_to_mongo(self):
             db.messagesdb.insert(self.json())
@@ -186,12 +204,12 @@ class Post:
 def load_user(user_id):
     return User.get_by_id(user_id)
 
-
+# render latest posts
 @appx.route('/')
 @appx.route('/home')
 def home():
-    p = db.postdb.find()
-    return render_template('home.html', posts=p)
+    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
+    return render_template('home.html', posts=posts)
 
 @appx.route("/register", methods=['GET', 'POST'])
 def register():
@@ -222,6 +240,7 @@ def login():
             user = User.get_by_username(username)
             if user is not None and User.login_valid(username, password):
                 login_user(user)
+                current_user.is_authenticated = True
                 flash(f'You are now logged in as {form.username.data}!', 'success')
                 return redirect('/me')
                 
@@ -280,9 +299,11 @@ def logoutapi():
 @login_required
 def user(username):
     if username == "me":
+        avatar = User.avatar(current_user.username)
         posts = db.postdb.find({"user_id": current_user._id})
-        return render_template('user.html', user=current_user,posts=posts)
+        return render_template('user.html', user=current_user,posts=posts,avatar=avatar)
     else:
+        avatar = User.avatar(username)
         user = User.get_by_username(username)
         aboutme = User.get_aboutme(username)
         if user is None:
@@ -290,7 +311,8 @@ def user(username):
             return redirect('/error/user')
         else:
             posts = db.postdb.find({"user_id": user._id})
-    return render_template('user.html', user=user,posts=posts,aboutme=aboutme)
+    return render_template('user.html',avatar=avatar, user=user,posts=posts,aboutme=aboutme)
+
 
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
@@ -346,5 +368,32 @@ def settings():
 @appx.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html')
+
+
+@appx.route("/message/<username>", methods=['GET', 'POST'])
+@login_required
+def message(username):
+    hmm = MessageForm()
+    chat = Messages.get_chat(current_user.username, username)
+    if hmm.validate_on_submit():
+        if request.method == 'POST':
+            message = request.form["message"]
+            h = '/sendmessage' + '?username=' + username + '&message=' + message
+            return redirect(h)
+    return render_template('messages.html', chat=chat, username=username,form=hmm)
+
+@appx.route("/sendmessage", methods=['GET', 'POST'])
+@login_required
+def sendmessage():
+    x = request.args
+    username = x.get("username")
+    message = x.get("message")
+    Messages.send_message(current_user.username, username, message)
+    return redirect('/message/' + username)
+
+
+
+
+
 
 appx.run(debug=True)

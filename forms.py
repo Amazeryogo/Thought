@@ -24,3 +24,17 @@ class AboutMeForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired()])
     content = TextAreaField('Content', validators=[DataRequired()])
     submit = SubmitField('Update')
+
+class ResetPasswordRequestForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired()])
+    submit = SubmitField('Request Password Reset')
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField('Password', validators=[DataRequired()])
+    repeat = PasswordField(
+        'Repeat Password', validators=[DataRequired()])
+    submit = SubmitField('Please Reset my password')
+
+class MessageForm(FlaskForm):
+    message = TextAreaField('Message', validators=[DataRequired()])
+    submit = SubmitField('📨')

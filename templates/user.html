@@ -3,10 +3,11 @@
 {% block content %}
     <table id="user">
       <tr valign="top">
+        <td><img src="{{ avatar }}"></img></td>
         <td>
-          <h1>User: {{ user.username }}</h1>
-          Email: {{ user.email }}<br>
-          Aboutme: {{user.aboutme}}
+          <h1>{{ user.username }}</h1>
+          <b>{{ user.email }}</b> <br/>
+          About Me: {{user.aboutme}}
           {% if user == current_user %} <br/>
           <a href="/set/aboutme"><button>Settings</button></a>
           {% endif %}
@@ -15,24 +16,7 @@
     </table>
     <hr>
     {% for post in posts %}
-      <table id="post">
-        <tr valign="top">
-          <td>
-            <h3>{{post.title}}</h3> by {{post.username}} on {{post.timestamp}} <br/>
-            <br/>
-            {{post.content}} <br/>
-            {% if user == current_user %}
-            <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a>
-            {% endif %}
-          </td>
-        </tr>
-      </table>
+    {% include '_post.html' %}
     {% endfor %}
-    <br/>
-    <hr>
-    {% if user == current_user %}
-    <div>
-      <a href="/createnewpost"><button class="button">Create Post</button></a>
-    </div>
-    {% endif %}
+
   {% endblock %}

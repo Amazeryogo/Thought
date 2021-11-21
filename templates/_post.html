@@ -1,0 +1,20 @@
+<table id="post">
+    <tr valign="top">
+        <td>
+            <h3>{{post.title}}</h3> by <a href="/{{post.username}}">{{post.username}}</a><br />
+            <br />
+            {{post.content}} <br />
+            {% if user == current_user %}
+            <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a> <br/>
+            {% endif %}
+            <hr>
+            Published on {{post.timestamp}}
+        </td>
+    </tr>
+</table>
+<br />
+{% if user == current_user %}
+<div>
+    <a href="/createnewpost"><button class="button">Create Post</button></a>
+</div>
+{% endif %}

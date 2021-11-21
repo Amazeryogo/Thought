@@ -1,0 +1,43 @@
+{% extends "base.html"%}
+
+
+{% block content %}
+<meta http-equiv="refresh" content="20" />
+<script>
+    $(document).ready(function () {
+        $(window).scrollDown(0);
+    });
+</script>
+    {% for message in chat %}    
+        <!--Make the messages in a green bubble if the sender is not current user, else make it grey on the opposite side -->
+        <!--PUT THE MESSAGES IN THE BUBBLE-->
+        {% if message['sender'] == current_user.username %}
+            <div class="bubble bubble-alt">
+                <!-- put the bubbles on the right-->
+                <p>{{ message.message}}</p>
+            </div>
+            <br/>
+        {% else %}
+            <div class="bubble">
+                <p>{{ message.message }}</p>
+            </div>
+            <br/>
+            <br/>
+        {% endif %}
+    {% endfor %}
+    <br/>
+    <hr>
+    <div align="center">
+    <form action="" method="post">
+                {{ form.hidden_tag() }}
+                <p>
+                    {{ form.message(size=10) }} {{ form.submit() }}
+                </p>
+    </form>
+    </div>
+    <div>
+        Thought:
+        <a href="/home">Discover</a>
+        <a href="/me">Profile</a>
+    </div>
+{% endblock %}
