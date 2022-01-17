@@ -45,20 +45,16 @@
     </script>
     {% for message in chat %}
     {% if message['sender'] == current_user.username %}
-    <div class="container float-right row align-items-center">
         <div class="bubble bubble-alt">
             <p>{{ message.message}}</p>
         </div>
         <br/>
-    </div>
     {% else %}
-    <div class="container float-left row align-items-center">
         <div class="bubble">
             <p>{{ message.message }}</p>
         </div>
         <br/>
         <br/>
-    </div>
     {% endif %}
     {% endfor %}
 {% endblock %}
