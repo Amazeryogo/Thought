@@ -383,7 +383,7 @@ def page_not_found(e):
 @appx.route('/mes/<username>')
 def mes(username):
     chat = Messages.get_chat(current_user.username, username)
-    return render_template('mes.html', chat=chat)
+    return render_template('mes.html', messages=chat)
 
 
 @appx.route("/message/<username>", methods=['GET', 'POST'])
