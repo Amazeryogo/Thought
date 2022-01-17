@@ -39,16 +39,16 @@
 
 
 {% block content %}
-<meta http-equiv="refresh" content="10" />
-{% for message in messages %}
-  {% if message['sender'] == current_user.username %}
-    <div class="bubble">
-      <p>{{ message['message'] }}</p>
-    </div>
-  {% else %}
-    <div class="bubble-alt">
-      <p>{{ message['message'] }}</p>
-    </div>
-  {% endif %}
-{% endfor %}
+  <meta http-equiv="refresh" content="10" />
+  {% for message in messages %}
+    {% if message['sender'] == current_user.username %}
+      <div class="bubble">
+        <p>{{ message['message'] }}</p>
+      </div>
+    {% else %}
+      <div class="bubble-alt">
+        <p>{{ message['message'] }}</p>
+      </div>
+    {% endif %}
+  {% endfor %}
 {% endblock %}
