@@ -409,4 +409,4 @@ def dashboardmessaging():
     return render_template('dashboard_messaging.html')
 
 
-appx.run(debug=True, host='0.0.0.0', port=5000)
+appx.run(debug=True, host='0.0.0.0')
