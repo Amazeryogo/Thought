@@ -43,7 +43,7 @@
 <div class="container">
     {% for message in chat %}
     {% if message['sender'] == current_user.username %}
-    <div class="col-md-4 float-right">
+    <div class="float-right">
         <div class="bubble bubble-alt">
             <p>{{ message.message}}</p>
         </div>
