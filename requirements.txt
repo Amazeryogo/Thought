@@ -6,3 +6,4 @@ flask_login==0.5.0
 flask_pymongo==2.3.0
 flask_bootstrap
 dnspython
+waitress

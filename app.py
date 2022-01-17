@@ -408,5 +408,5 @@ def sendmessage():
 def dashboardmessaging():
     return render_template('dashboard_messaging.html')
 
-
-appx.run(debug=True, host='0.0.0.0')
+from waitress import serve
+serve(appx, host='0.0.0.0', port=os.environ['PORT'])
