@@ -380,17 +380,22 @@ def page_not_found(e):
     return render_template('404.html')
 
 
+@appx.route('/mes/<username>')
+def mes(username):
+    chat = Messages.get_chat(current_user.username, username)
+    return render_template('mes.html', chat=chat)
+
+
 @appx.route("/message/<username>", methods=['GET', 'POST'])
 @login_required
 def message(username):
     hmm = MessageForm()
-    chat = Messages.get_chat(current_user.username, username)
     if hmm.validate_on_submit():
         if request.method == 'POST':
             message = request.form["message"]
             h = '/sendmessage' + '?username=' + username + '&message=' + message
             return redirect(h)
-    return render_template('messages.html', chat=chat, username=username, form=hmm)
+    return render_template('messages.html', username=username, form=hmm)
 
 
 @appx.route("/sendmessage", methods=['GET', 'POST'])
@@ -408,5 +413,7 @@ def sendmessage():
 def dashboardmessaging():
     return render_template('dashboard_messaging.html')
 
+
 from waitress import serve
+
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])
