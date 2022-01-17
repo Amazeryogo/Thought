@@ -22,8 +22,6 @@
                 border-radius: 10px;
                 padding: 10px;
                 margin: 10px;
-                display: inline-block;
-                max-width: 80%;
                 left: 100%;
             }
 
@@ -32,17 +30,12 @@
                 border-radius: 10px;
                 padding: 10px;
                 margin: 10px;
-                left: 0px;
+                left: 0%;
             }
 
 </style>
 
 <meta http-equiv="refresh" content="10" />
-<script>
-    $(document).ready(function () {
-        $(window).scrollDown(0);
-    });
-    </script>
     {% for message in chat %}
     {% if message['sender'] == current_user.username %}
         <div class="bubble bubble-alt">
