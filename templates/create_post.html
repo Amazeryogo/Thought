@@ -1,16 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
-        <form action="" method="post" novalidate>
-        {{ form.hidden_tag() }}
-        <p>
-            {{ form.title.label }}<br>
-            {{ form.title(size=32) }}<br>
-        </p>
-        <p>
-            {{ form.content.label }}<br>
-            {{ form.content}}<br>
-        </p>
-        <p>{{ form.submit() }}</p>
+<div class="col-md-4" align="center">
+    <form action="" method="post">
+    {% import "bootstrap/wtf.html" as wtf %}
+    {{ wtf.quick_form(form) }}
     </form>
+</div>
 {% endblock %}
