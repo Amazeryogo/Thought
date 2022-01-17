@@ -1,7 +1,7 @@
-  {% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
-    <table id="user">
+<!--    <table id="user">
       <tr valign="top">
         <td><img src="{{ avatar }}"></img></td>
         <td>
@@ -10,13 +10,42 @@
           About Me: {{user.aboutme}}
           {% if user == current_user %} <br/>
           <a href="/set/aboutme"><button>Settings</button></a>
+          {% else %}
+          <a href="/message/{{user.username}}"><button>Message!</button></a>
           {% endif %}
         </td>
       </tr>
     </table>
-    <hr>
+    <hr>-->
+<div class="container">
+  <div class="row">
+    <div class="col-md-3">
+      <div class="panel panel-default">
+        <div class="panel-body">
+          <img src="{{ avatar }}" class="img-responsive" alt="Responsive image">
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="panel panel-default">
+        <div class="panel-body">
+          <h1>{{ user.username }}</h1>
+          <b>{{ user.email }}</b> <br/>
+          About Me: {{user.aboutme}}
+          {% if user == current_user %} <br/>
+          <a href="/set/aboutme"><button>Settings</button></a>
+          {% else %}
+          <a href="/message/{{user.username}}"><button>Message!</button></a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
+
 
   {% endblock %}

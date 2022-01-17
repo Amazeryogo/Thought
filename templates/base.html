@@ -1,15 +1,15 @@
 <!doctype html>
-<html>
-    
-    <head>
-        
-        {% if title %}
-        <title>{{ title }} - Thought</title>
-        {% else %}
-        <title>Thought</title>
-        {% endif %}
-        <!--Add message bubble-->
-        <style>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <title>Hello, world!</title>
+              <style>
             #post {
                 margin: auto;
                 width: 30%;
@@ -22,7 +22,7 @@
                     width: 50%;
                     padding: 10px;
                 }
-        
+
             .button {
                 position: relative;
                 top: 50%;
@@ -34,8 +34,9 @@
                 margin: 10px;
                 display: inline-block;
                 max-width: 80%;
+                left: 100%;
             }
-     
+
             .bubble-alt {
                 background-color: lightgrey;
                 border-radius: 10px;
@@ -45,24 +46,35 @@
             }
 
         </style>
-    </head>
-    <body>
-        {{ turbo()}}
-        <div>
-                Thought:
-                <a href="/home">Discover</a>
-                <a href="/me">Profile</a>
-        </div>
-        <hr>
-        {% with messages = get_flashed_messages() %}
+
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <li class="nav-item">
+        <a class="nav-link" href="/home">Discover</a>
+        </li>
+        <li class="nav-item">
+        <a class="nav-link" href="/me">Profile</a>
+        </li>
+        <li class="nav-item">
+        <a class="nav-link" href="/createnewpost">Create New Post</a>
+    </nav>
+    <br/>
+    {% with messages = get_flashed_messages() %}
         {% if messages %}
         <ul>
             {% for message in messages %}
-            <li>{{ message }}</li>  
+            <li>{{ message }}</li>
             {% endfor %}
         </ul>
         {% endif %}
         {% endwith %}
         {% block content %}{% endblock %}
-    </body>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  </body>
 </html>
