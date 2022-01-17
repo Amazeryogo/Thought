@@ -13,7 +13,8 @@ import flask_bootstrap
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
-appx.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB"
+# get from heroku config variables
+appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
 mongo = PyMongo(appx)
 login = LoginManager(appx)
 login.login_view = '/login'
