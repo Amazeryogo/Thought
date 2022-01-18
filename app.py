@@ -171,9 +171,15 @@ class Messages:
         users = []
         for i in db.messagesdb.find():
             if i['sender'] == current_user.username:
-                users.append(i['receiver'])
+                if i['receiver'] not in users:
+                    users.append(i['receiver'])
+                else:
+                    pass
             elif i['receiver'] == current_user.username:
-                users.append(i['sender'])
+                if i['sender'] not in users:
+                    users.append(i['sender'])
+                else:
+                    pass
         return users
 
 
@@ -426,7 +432,6 @@ def messagingdashboard():
     # then show them in a list
     # then show the messages between the two
     c = Messages.get_users()
-    print(c)
     return render_template('wuff.html', users=c)
     
 
