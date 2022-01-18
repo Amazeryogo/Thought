@@ -166,6 +166,11 @@ class Messages:
         new_message.save_to_mongo()
         return new_message.json()
 
+    def get_users(self):
+        chats = db.messagesdb.find({"sender": current_user.username})
+        chats = list(chats)
+        return [chat["receiver"] for chat in chats]
+
     def save_to_mongo(self):
         db.messagesdb.insert_one(self.json())
 
@@ -408,10 +413,15 @@ def sendmessage():
     return redirect('/message/' + username)
 
 
-@appx.route("/dashboard/messaging")
+@appx.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
-def dashboardmessaging():
-    return render_template('dashboard_messaging.html')
+def messagingdashboard():
+    # get all users that the current user has messaged
+    # then show them in a list
+    # then show the messages between the two
+    c = Messages.get_users()
+    return render_template('wuff.html', users=c)
+    
 
 
 from waitress import serve

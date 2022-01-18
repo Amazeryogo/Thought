@@ -1,0 +1,8 @@
+{% include 'base.html' %}
+<ul class="list-group">
+    {% for user in users %}
+        <li class="list-group-item">
+            <a href="{{ url_for('user', id=user.id) }}">{{ user.username }}</a>
+        </li>
+    {% endfor %}
+</ul>
