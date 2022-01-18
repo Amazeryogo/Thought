@@ -167,7 +167,7 @@ class Messages:
         return new_message.json()
 
     @classmethod
-    def get_users():
+    def get_users(self):
         chats = db.messagesdb.find({"sender": current_user.username})
         chats = list(chats)
         return [chat["receiver"] for chat in chats]
