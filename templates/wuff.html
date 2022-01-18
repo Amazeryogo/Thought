@@ -1,8 +1,8 @@
 {% include 'base.html' %}
+<div class="col-md-4">    
 <ul class="list-group">
     {% for user in users %}
-        <li class="list-group-item">
-            <a href="/message/{{user}}">{{ user}}</a>
-        </li>
+        <a href="/message/{{user}}"><li class="list-group-item">{{user}}</li></a>
     {% endfor %}
 </ul>
+</div>
