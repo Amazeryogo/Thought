@@ -1,6 +1,7 @@
 {% include 'base.html' %}
 <ul class="list-group">
     {% for user in users %}
+    <h1>{{users}}</h1>
         <li class="list-group-item">
             <a href="/message/{{user.username}}">{{ user.username }}</a>
         </li>

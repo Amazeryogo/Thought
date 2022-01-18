@@ -168,9 +168,14 @@ class Messages:
 
     @classmethod
     def get_users(self):
-        chats = db.messagesdb.find({"sender": current_user.username})
-        chats = list(chats)
-        return [chat["receiver"] for chat in chats]
+        users = []
+        for i in db.messagesdb.find():
+            if i['sender'] == current_user.id:
+                users.append(i['receiver'])
+            elif i['reciver'] == current_user.id:
+                users.append(i['sender'])
+        return users
+
 
     def save_to_mongo(self):
         db.messagesdb.insert_one(self.json())
