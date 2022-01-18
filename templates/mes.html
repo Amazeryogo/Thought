@@ -43,12 +43,12 @@
     {% if message['sender'] == current_user.username %}
         <div class="bubble">
             <p>{{ message.message }}</p>
-            <a href="/deletemsg?msg_id={{message._id}}">Delete</a>
+            <a href="/deletemsg?msg_id={{message._id}}&redirect={{message.receiver}}">Delete</a>
         </div>
     {% else %}
         <div class="bubble-alt">
             <p>{{ message.message }}</p>
-            <a href="/deletemsg?msg_id={{message._id}}">Delete</a>
+            <a href="/deletemsg?msg_id={{message._id}}&redirect={{message.sender}}">Delete</a>
         </div>
     {% endif %}
 {% endfor %}

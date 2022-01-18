@@ -371,8 +371,10 @@ def deletepost():
 def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
+    red = x.get("redirect")
     db.messagesdb.delete_one({"_id": msg_id})
-    return "OK"
+    red = "/message/" + red
+    return redirect(red)
 
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
