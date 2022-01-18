@@ -172,7 +172,7 @@ class Messages:
         for i in db.messagesdb.find():
             if i['sender'] == current_user.username:
                 users.append(i['receiver'])
-            elif i['reciver'] == current_user.username:
+            elif i['receiver'] == current_user.username:
                 users.append(i['sender'])
         return users
 
