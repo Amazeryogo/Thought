@@ -182,7 +182,6 @@ class Messages:
                     pass
         return users
 
-
     def save_to_mongo(self):
         db.messagesdb.insert_one(self.json())
 
@@ -242,7 +241,7 @@ def register():
         if request.method == 'POST':
             username = request.form["username"]
             email = request.form["email"]
-            #invcode = request.form["invcode"]
+            # invcode = request.form["invcode"]
             invcode = "idk123"
             password = generate_password_hash(request.form["password"])  # .decode('utf-8')
             find_user = User.get_by_email(email)
@@ -366,13 +365,15 @@ def deletepost():
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
 
+
 @appx.route('/deletemsg')
 @login_required
 def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     db.messagesdb.delete_one({"_id": msg_id})
-    return redirect('/mes/' + current_user.username)
+    return "OK"
+
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
@@ -441,8 +442,8 @@ def messagingdashboard():
     # then show the messages between the two
     c = Messages.get_users()
     return render_template('wuff.html', users=c)
-    
 
 
 from waitress import serve
+
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])
