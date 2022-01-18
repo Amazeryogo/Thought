@@ -365,6 +365,14 @@ def deletepost():
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
 
+@appx.route('/deletemsg')
+@login_required
+def deletemsg():
+    x = request.args
+    msg_id = x.get("msg_id")
+    db.msgdb.delete_one({"_id": msg_id, "username": current_user.username})
+    return redirect('/me')
+
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
