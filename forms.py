@@ -14,7 +14,7 @@ class CreateUserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired()])
-    invcode = StringField('Invite Code', validators=[DataRequired()])
+    #invcode = StringField('Invite Code', validators=[DataRequired()])
     submit = SubmitField('Create User')
 
 

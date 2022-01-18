@@ -242,7 +242,8 @@ def register():
         if request.method == 'POST':
             username = request.form["username"]
             email = request.form["email"]
-            invcode = request.form["invcode"]
+            #invcode = request.form["invcode"]
+            invcode = "idk123"
             password = generate_password_hash(request.form["password"])  # .decode('utf-8')
             find_user = User.get_by_email(email)
             if find_user is None:
