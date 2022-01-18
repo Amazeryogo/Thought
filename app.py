@@ -170,6 +170,7 @@ class Messages:
     def get_users(self):
         users = []
         for i in db.messagesdb.find():
+            print(i)
             if i['sender'] == current_user.username:
                 users.append(i['receiver'])
             elif i['receiver'] == current_user.username:
