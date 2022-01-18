@@ -166,7 +166,8 @@ class Messages:
         new_message.save_to_mongo()
         return new_message.json()
 
-    def get_users(self):
+    @classmethod
+    def get_users():
         chats = db.messagesdb.find({"sender": current_user.username})
         chats = list(chats)
         return [chat["receiver"] for chat in chats]
