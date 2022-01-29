@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataSource name="ThoughtDB@cluster0.z0sps.mongodb.net">
+  <database-model serializer="dbm" dbms="MONGO" family-id="MONGO" format-version="4.32">
+    <root id="1">
+      <ServerVersion>4.4.11</ServerVersion>
+    </root>
+    <schema id="2" parent="1" name="ThoughtDB">
+      <Current>1</Current>
+    </schema>
+    <schema id="3" parent="1" name="admin"/>
+    <schema id="4" parent="1" name="local"/>
+    <table id="5" parent="2" name="messagesdb"/>
+    <table id="6" parent="2" name="postdb"/>
+    <table id="7" parent="2" name="userdb"/>
+    <column id="8" parent="5" name="_id">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="9" parent="5" name="message">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="10" parent="5" name="receiver">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="11" parent="5" name="timestamp">
+      <DataType>ISODate|91s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="12" parent="5" name="sender">
+      <DataType>String|12s</DataType>
+      <Position>2</Position>
+    </column>
+    <column id="13" parent="6" name="_id">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="14" parent="6" name="content">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="15" parent="6" name="timestamp">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="16" parent="6" name="title">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="17" parent="6" name="user_id">
+      <DataType>String|12s</DataType>
+      <Position>2</Position>
+    </column>
+    <column id="18" parent="6" name="username">
+      <DataType>String|12s</DataType>
+      <Position>3</Position>
+    </column>
+    <column id="19" parent="7" name="_id">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="20" parent="7" name="aboutme">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="21" parent="7" name="email">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="22" parent="7" name="password">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="23" parent="7" name="username">
+      <DataType>String|12s</DataType>
+      <Position>1</Position>
+    </column>
+    <column id="24" parent="7" name="invcode">
+      <DataType>String|12s</DataType>
+      <Position>2</Position>
+    </column>
+  </database-model>
+</dataSource>
