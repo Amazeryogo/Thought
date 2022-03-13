@@ -256,6 +256,7 @@ def register():
 
 @appx.route("/login", methods=['GET', 'POST'])
 def login():
+    next = request.args.get('next')
     form = LoginForm()
     if form.validate_on_submit():
         if request.method == 'POST':
@@ -266,8 +267,7 @@ def login():
                 login_user(user)
                 current_user.is_authenticated = True
                 flash(f'You are now logged in as {form.username.data}!', 'success')
-                return redirect('/me')
-
+                return redirect(next or url_for('home'))
             else:
                 flash(f'Invalid login!', 'danger')
     return render_template('login.html', title='Login', form=form)
