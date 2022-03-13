@@ -242,8 +242,8 @@ def home():
             flash(f'Your post has been created!', 'success')
             return redirect('/home')
     posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
-    user = User.get_by_id(current_user._id)
-    return render_template('home.html', posts=posts,form=form, user=user)
+
+    return render_template('home.html', posts=posts,form=form)
 
 
 @appx.route("/register", methods=['GET', 'POST'])

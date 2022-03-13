@@ -1,13 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1 class="text-center">Hello There, {{ user }}!</h1>
-    <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-xs-12">        <form action="" method="post">
-            {% import "bootstrap/wtf.html" as wtf %}
-            {{ wtf.quick_form(form) }}
-        </form>
-    </div>
-  {% for post in posts %}
-    {% include '_post.html' %}
-  {% endfor %}
+    <h1 class="text-center">Latest Posts:</h1>
+    {% for post in posts %}
+        {% include '_post.html' %}
+    {% endfor %}
 {% endblock %}
