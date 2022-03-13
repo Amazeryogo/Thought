@@ -230,20 +230,8 @@ def load_user(user_id):
 @appx.route('/')
 @appx.route('/home', methods=['GET', 'POST'])
 def home():
-    form = PostForm()
-    if form.validate_on_submit():
-        if request.method == 'POST':
-            title = request.form["title"]
-            content = request.form["content"]
-            user_id = current_user._id
-            new_post = Post(current_user.username, title, content, bruh.now().strftime('%Y-%m-%d %H:%M:%S')
-                            , user_id)
-            new_post.save_to_mongo()
-            flash(f'Your post has been created!', 'success')
-            return redirect('/home')
     posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
-
-    return render_template('home.html', posts=posts,form=form)
+    return render_template('home.html', posts=posts)
 
 
 @appx.route("/register", methods=['GET', 'POST'])
@@ -294,7 +282,7 @@ def logout():
 @appx.route('/api/about')
 def api_about():
     uhh = {
-        "name": "Thought",
+        "name": "ThoughtAPI",
         "version": "1.0"
     }
     return str(uhh)
@@ -451,9 +439,6 @@ def sendmessage():
 @appx.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
-    # get all users that the current user has messaged
-    # then show them in a list
-    # then show the messages between the two
     c = Messages.get_users()
     return render_template('wuff.html', users=c)
 
