@@ -1,22 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!--    <table id="user">
-      <tr valign="top">
-        <td><img src="{{ avatar }}"></img></td>
-        <td>
-          <h1>{{ user.username }}</h1>
-          <b>{{ user.email }}</b> <br/>
-          About Me: {{user.aboutme}}
-          {% if user == current_user %} <br/>
-          <a href="/set/aboutme"><button>Settings</button></a>
-          {% else %}
-          <a href="/message/{{user.username}}"><button>Message!</button></a>
-          {% endif %}
-        </td>
-      </tr>
-    </table>
-    <hr>-->
 <div class="container">
   <div class="row">
     <div class="col-md-3">
@@ -42,10 +26,7 @@
     </div>
   </div>
 </div>
-
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
-
-
   {% endblock %}

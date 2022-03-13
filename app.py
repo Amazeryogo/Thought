@@ -228,10 +228,21 @@ def load_user(user_id):
 
 # render latest posts
 @appx.route('/')
-@appx.route('/home')
+@appx.route('/home', methods=['GET', 'POST'])
 def home():
+    form = PostForm()
+    if form.validate_on_submit():
+        if request.method == 'POST':
+            title = request.form["title"]
+            content = request.form["content"]
+            user_id = current_user._id
+            new_post = Post(current_user.username, title, content, bruh.now().strftime('%Y-%m-%d %H:%M:%S')
+                            , user_id)
+            new_post.save_to_mongo()
+            flash(f'Your post has been created!', 'success')
+            return redirect('/home')
     posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
-    return render_template('home.html', posts=posts)
+    return render_template('home.html', posts=posts,form=form)
 
 
 @appx.route("/register", methods=['GET', 'POST'])

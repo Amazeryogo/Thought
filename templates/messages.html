@@ -2,7 +2,7 @@
 {% block content %}
 <!-- put the messages in a seperate iframe -->
 <iframe src="/mes/{{username}}" scrolling="yes" style="width: 1004px; height: 504px;"></iframe>
-  <div class="col-md-4" align="center">
+  <div class="col-md-4">
     <form action="" method="post">
     {% import "bootstrap/wtf.html" as wtf %}
     {{ wtf.quick_form(form) }}
