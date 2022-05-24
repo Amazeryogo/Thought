@@ -1,7 +1,7 @@
 from flask import Flask, flash, render_template, request, session, make_response, redirect, url_for
 from forms import *
 import os
-from flask_pymongo import *
+from pymongo import *
 from flask_login import LoginManager
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import current_user, login_user, logout_user, login_required, UserMixin
@@ -13,9 +13,9 @@ import flask_bootstrap
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
+appx.config['FAVICON'] = 'favicon.ico'
 # get from heroku config variables
-appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
-mongo = PyMongo(appx)
+mongo = MongoClient("mongodb://docker:mongopw@localhost:55000")
 login = LoginManager(appx)
 login.login_view = '/login'
 appx.config['TESTING'] = False
