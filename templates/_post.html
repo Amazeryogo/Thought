@@ -1,21 +1,15 @@
-<div class="container pt-3">
+<div class="container-fluid" style="border:1px solid #000000;">
     <div class="row">
         <div class="col-md-8">
             <h1>{{post.title}}</h1>
             <p>by <a href="/{{post.username}}">{{post.username}}</a></p>
-            <!-- assume that post.content is a markdown string -->
-            <div class="markdown-body">
+            <p>{{post.timestamp}}</p>
+            <div class="markdown-body" style="border:1px solid #00ffff;">
                 {{post.content}}
             </div>
             {% if user == current_user %}
             <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a> <br/>
             {% endif %}
-            <hr>
-            Published on {{post.timestamp}}
         </div>
     </div>
 </div>
-<br />
-{% if user == current_user %}
-
-{% endif %}
