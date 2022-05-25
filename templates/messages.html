@@ -3,14 +3,14 @@
 <!-- put the messages in a seperate iframe -->
 <iframe src="/mes/{{username}}" scrolling="yes" style="width: 1004px; height: 504px;"></iframe>
   <div class="col-md-4">
-    <form action="" method="post">
-    {% import "bootstrap/wtf.html" as wtf %}
         <div class="row">
         <div class="col-md-4 col-lg-offset-4">
-            {{ wtf.quick_form(form) }}
-        </div>
-        </div>
+            <form action="" method="post">
+                {% import "bootstrap/wtf.html" as wtf %}
+                    {{ wtf.quick_form(form) }}
 
-    </form>
+            </form>
+        </div>
+        </div>
 </div>
 {% endblock %}

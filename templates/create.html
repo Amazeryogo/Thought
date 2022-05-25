@@ -3,13 +3,14 @@
 {% block content %}
     <h1>Create User</h1>
     <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-xs-12">
-        <form action="" method="post">
-            {% import "bootstrap/wtf.html" as wtf %}
             <div class="row">
             <div class="col-md-4 col-lg-offset-4">
-            {{ wtf.quick_form(form) }}
-            </div></div>
-        </form>
+                <form action="" method="post">
+                    {% import "bootstrap/wtf.html" as wtf %}
+                    {{ wtf.quick_form(form) }}
+                </form>
+            </div>
+        </div>
     </div>
     <h3>Already have an account? <a href="/login">Sign In</a></h3>
 {% endblock %}

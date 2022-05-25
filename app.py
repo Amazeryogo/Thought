@@ -21,6 +21,8 @@ login.login_view = '/login'
 appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
+# set favicon
+appx.config['FAVICON'] = 'favicon.ico'
 
 
 class User(UserMixin):

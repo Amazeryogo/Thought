@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1 class="text-center">Latest Posts:</h1>
+    <h1 style="text-align: center; color: coral">Welcome to Thought</h1>
+    <h2 style="text-align: center; color: coral">A place to share your thoughts</h2>\
+    <h5 style="text-align: center; color: coral">Latest Posts:</h5>
     {% for post in posts %}
-        {% include '_post.html' %}
+    {% include '_post.html' %}
     {% endfor %}
 {% endblock %}
