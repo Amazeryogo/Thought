@@ -1,4 +1,4 @@
-from flask import Flask, flash, render_template, request, session, make_response, redirect, url_for
+from flask import *
 from forms import *
 import os
 from flask_pymongo import *
@@ -461,5 +461,4 @@ def logout():
 
 
 from waitress import serve
-
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])
