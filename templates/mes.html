@@ -51,7 +51,7 @@
     {% if message['sender'] == current_user.username %}
         <div class="bubble">
             <p style="font-family: 'Ubuntu', sans-serif;">{{ message.message }}</p>
-            <a style="font-family: 'Ubuntu', sans-serif;"href="/deletemsg?msg_id={{message._id}}&redirect={{message.receiver}}">Delete</a>
+            <a style="font-family: 'Ubuntu', sans-serif;" href="/deletemsg?msg_id={{message._id}}&redirect={{message.receiver}}">Delete</a>
         </div>
     {% else %}
         <div class="bubble-alt">

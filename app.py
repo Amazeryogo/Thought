@@ -186,6 +186,17 @@ class Messages:
     def save_to_mongo(self):
         db.messagesdb.insert_one(self.json())
 
+    # get the last message that was sent
+    @classmethod
+    def get_last_message(cls, user1, user2):
+        chats = db.messagesdb.find(
+            {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
+        # sort using timestamps
+        chats = list(chats)
+        chats.sort(key=lambda x: x["timestamp"])
+        # return the last message and the sender
+        return [i for i in chats][-1]
+
 
 class Post:
     def __init__(self, username, title, content, timestamp, user_id, _id=None):
@@ -272,12 +283,6 @@ def login():
             else:
                 flash(f'Invalid login!', 'danger')
     return render_template('login.html', title='Login', form=form)
-
-
-@appx.route('/logout')
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
 
 
 @appx.route('/api/about')
@@ -440,8 +445,19 @@ def sendmessage():
 @appx.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
+    k = []
     c = Messages.get_users()
-    return render_template('wuff.html', users=c)
+    # get every last message from every user
+    for i in c:
+        p = Messages.get_last_message(current_user.username, i)
+        k.append([p,i])
+    return render_template('messaging_dashboard.html', k=k)
+
+
+@appx.route('/logout', methods=['GET', 'POST'])
+def logout():
+    logout_user()
+    return redirect('/')
 
 
 from waitress import serve

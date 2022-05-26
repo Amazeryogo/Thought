@@ -1,0 +1,15 @@
+{% include 'base.html' %}
+
+    
+{% block content %}
+    {% for l in k %}
+        <div class="list-group">
+          <a href="/message/{{l[1]}}" class="list-group-item list-group-item-action flex-column align-items-start bg-active">
+            <div class="d-flex w-100 justify-content-between">
+              <h5 class="mb-1">{{ l[1] }}</h5>
+            </div>
+            <p class="mb-1">{{ l[0]['sender'] }} said: {{ l[0]['message'] }}</p>
+          </a>
+        </div>
+    {% endfor %}
+{% endblock %}

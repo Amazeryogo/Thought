@@ -1,8 +1,11 @@
 {% extends "base.html"%}
 {% block content %}
 <!-- put the messages in a seperate iframe -->
-<iframe src="/mes/{{username}}" scrolling="yes" style="width: 1004px; height: 504px;"></iframe>
-  <div class="col-md-4">
+    <div class="d-flex justify-content-center">
+        <iframe src="/mes/{{username}}" scrolling="yes" style="width: 88%; height: 50%;"></iframe>
+    </div>
+    </div>
+  <div class="col-md-4 bg-light">
         <div class="row">
         <div class="col-md-4 col-lg-offset-4">
             <form action="" method="post">
