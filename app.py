@@ -1,15 +1,14 @@
-from flask import Flask, flash, render_template, request,redirect, url_for, send_from_directory
+from flask import *
 from forms import *
-import os
 from flask_pymongo import *
-from flask_login import LoginManager
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import current_user, login_user, logout_user, login_required, UserMixin
+from flask_login import *
+from werkzeug.security import *
 import uuid
 from hashlib import md5
 from datetime import datetime as bruh
 import flask_bootstrap
 import markdown
+from waitress import serve
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -39,18 +38,6 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
-
-    def is_authenticated(self):
-        return True
-
-    def is_active(self):
-        return True
-
-    def is_anonymous(self):
-        return False
-
-    def get_id(self):
-        return self._id
 
     @classmethod
     def get_by_username(cls, username):
@@ -251,11 +238,12 @@ def home():
         p2.append(i)
     return render_template('home.html', posts=p2)
 
+
 @appx.route('/favicon.ico')
 def favicon():
     # the favicon file is in the same directory as app.py
     return send_from_directory(os.path.join(appx.root_path, 'static'),
-                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @appx.route("/<username>")
@@ -366,8 +354,6 @@ def logoutapi():
     return "{\"comment\" : \" LOGGED OUT \"}"
 
 
-
-
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
 def createnewpost2():
@@ -472,7 +458,7 @@ def messagingdashboard():
     # get every last message from every user
     for i in c:
         p = Messages.get_last_message(current_user.username, i)
-        k.append([p,i])
+        k.append([p, i])
     return render_template('messaging_dashboard.html', k=k)
 
 
@@ -481,18 +467,6 @@ def logout():
     logout_user()
     return redirect('/')
 
-@appx.route('/reset_password', methods=['GET', 'POST'])
-def reset_password():
-    form = ResetPasswordForm()
-    if form.validate_on_submit():
-        if request.method == 'POST':
-            email = request.form["email"]
-            User.reset_password(email)
-            flash(f'Your password has been reset!', 'success')
-            return redirect('/')
-    return render_template('reset_password.html', title='Reset Password', form=form)
 
-
-from waitress import serve
 
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])

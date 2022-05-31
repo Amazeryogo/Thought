@@ -2,7 +2,7 @@
 
 {% block content %}
     <h1 style="text-align: center" class="bg-light">Sign In or <a href="/register">Sign Up</a> </h1>
-            <div class="col-md-4">
+            <div class="col">
                 <form action="" method="post" class="form-control" style="margin: auto;">
                     {% import "bootstrap/wtf.html" as wtf %}
                         {{ wtf.quick_form(form) }}
