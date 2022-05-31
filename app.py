@@ -1,4 +1,4 @@
-from flask import Flask, flash, render_template, request, session, make_response, redirect, url_for
+from flask import Flask, flash, render_template, request,redirect, url_for, send_from_directory
 from forms import *
 import os
 from flask_pymongo import *
@@ -250,6 +250,13 @@ def home():
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2)
+
+@appx.route('/favicon.ico')
+def favicon():
+    # the favicon file is in the same directory as app.py
+    return send_from_directory(os.path.join(appx.root_path, 'static'),
+                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 
 @appx.route("/<username>")
 @login_required
