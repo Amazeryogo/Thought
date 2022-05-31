@@ -1,31 +1,19 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="container">
-  <div class="row">
-    <div class="col-md-3 bg-active">
-      <div class="panel panel-default">
-        <div class="panel-body">
-          <img src="{{ avatar }}" class="img-responsive" alt="Responsive image">
-        </div>
-      </div>
-    </div>
-    <div class="col-md-9 bg-active">
-      <div class="panel panel-default">
-        <div class="panel-body">
-          <h1>{{ user.username }}</h1>
-          <b>{{ user.email }}</b> <br/>
-          About Me: {{user.aboutme}}
-          {% if user == current_user %} <br/>
-          <a href="/set/aboutme"><button class="btn-warning">Settings</button></a>
+<div class="card border-active mx-auto mb-3" style="max-width: 100%">
+    <img src="{{ avatar }}" class="img-responsive" alt="Responsive image">
+    <div class="card-body">
+      <h4 class="card-title">{{ user.username }}</h4>
+      <b class="card-text">{{ user.email }}</b>
+      <p class="card-text"> About Me: {{ user.aboutme }}</p>
+      {% if user == current_user %} <br/>
+          <a href="/set/aboutme" class="btn btn-warning">Settings</a>
           {% else %}
-          <a href="/message/{{user.username}}"><button class="btn-primary">Message!</button></a>
-          {% endif %}
-        </div>
-      </div>
+          <a href="/message/{{user.username}}" class="btn btn-primary">Message!</a>
+      {% endif %}
     </div>
-  </div>
 </div>
+
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
