@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <dataSource name="ThoughtDB@cluster0.z0sps.mongodb.net">
   <database-model serializer="dbm" dbms="MONGO" family-id="MONGO" format-version="4.39">
-    <root id="1"/>
+    <root id="1">
+      <ServerVersion>4.4.11</ServerVersion>
+    </root>
     <schema id="2" parent="1" name="ThoughtDB">
       <Current>1</Current>
     </schema>
