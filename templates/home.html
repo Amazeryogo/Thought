@@ -1,10 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1 style="text-align: center; color: coral">Welcome to Thought</h1>
-    <h4 style="text-align: center" class="bg-primary">A social media service made to publish your thoughts</h4>
+    <!-- make a welcome section -->
+    <div class="card">
+  <div class="card-body">
+    <h4 class="card-title" style="text-align: center">Thought</h4>
+    <p class="card-text" style="text-align: center">Thought is an experimental micro blogging service to expand and share your thoughts</p>
+    <div class="card-footer text-muted card-footer bg-transparent border-success" style="text-align: center">
+      <a href="{{ url_for('login') }}" class="btn btn-primary">Login</a>
+      <a href="https://github.com/Amazeryogo/Thought" class="btn btn-primary">Github</a>"
+  </div>
+</div>
+</div>
     <h5 style="text-align: center; color: black">Latest Posts:</h5>
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
 {% endblock %}
