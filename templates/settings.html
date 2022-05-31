@@ -3,10 +3,10 @@
 {% block content %}
     <h1>Settings</h1>
 <div>
-        <div class="col-md-4">
-            <form action="" method="post">
+        <div class="col">
+            <form action="" method="post" class="form-control">
                 {% import "bootstrap/wtf.html" as wtf %}
-                {{ wtf.quick_form(form) }}\
+                {{ wtf.quick_form(form) }}
              </form>
         </div>
 <br/>
