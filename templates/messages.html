@@ -4,10 +4,8 @@
     <div class="col d-flex justify-content-center">
         <iframe src="/mes/{{username}}" scrolling="yes" style="width: 88%; height: 50%;"></iframe>
     </div>
-    </div>
-  <div class="col-md-4 bg-light">
-        <div class="row">
         <div class="col">
+            <div class="row">
             <form action="" method="post" class="form-control">
                 {% import "bootstrap/wtf.html" as wtf %}
                     {{ wtf.quick_form(form) }}
@@ -15,5 +13,5 @@
             </form>
         </div>
         </div>
-</div>
+
 {% endblock %}

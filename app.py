@@ -37,6 +37,7 @@ class User(UserMixin):
         self.password = password
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.id = self._id
         self.posts = db.postdb.find({"user_id": self._id})
 
     @classmethod
