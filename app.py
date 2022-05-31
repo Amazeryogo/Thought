@@ -1,4 +1,4 @@
-from flask import *
+from flask import Flask, flash, render_template, request, session, make_response, redirect, url_for
 from forms import *
 import os
 from flask_pymongo import *
@@ -9,6 +9,7 @@ import uuid
 from hashlib import md5
 from datetime import datetime as bruh
 import flask_bootstrap
+import markdown
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -21,7 +22,6 @@ login.login_view = '/login'
 appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
-# set favicon
 appx.config['FAVICON'] = 'favicon.ico'
 
 
@@ -230,6 +230,8 @@ class Post:
             return cls(**data)
 
     def save_to_mongo(self):
+        # make the content to markdown
+        self.content = markdown.markdown(self.content)
         db.postdb.insert_one(self.json())
 
 
@@ -243,7 +245,37 @@ def load_user(user_id):
 @appx.route('/home', methods=['GET', 'POST'])
 def home():
     posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
-    return render_template('home.html', posts=posts)
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2)
+
+@appx.route("/<username>")
+@login_required
+def user(username):
+    if username == "me":
+        avatar = User.avatar(current_user.username)
+        posts = db.postdb.find({"user_id": current_user._id}).sort("timestamp", DESCENDING).limit(10)
+        p2 = []
+        for i in posts:
+            i['content'] = markdown.markdown(i['content'])
+            p2.append(i)
+        return render_template('user.html', user=current_user, posts=p2, avatar=avatar)
+    else:
+        avatar = User.avatar(username)
+        user = User.get_by_username(username)
+        aboutme = User.get_aboutme(username)
+        if user is None:
+            p2 = []
+            return redirect('/error/user')
+        else:
+            posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
+            p2 = []
+            for i in posts:
+                i['content'] = markdown.markdown(i['content'])
+                p2.append(i)
+    return render_template('user.html', avatar=avatar, user=user, posts=p2, aboutme=aboutme)
 
 
 @appx.route("/register", methods=['GET', 'POST'])
@@ -327,23 +359,6 @@ def logoutapi():
     return "{\"comment\" : \" LOGGED OUT \"}"
 
 
-@appx.route("/<username>")
-@login_required
-def user(username):
-    if username == "me":
-        avatar = User.avatar(current_user.username)
-        posts = db.postdb.find({"user_id": current_user._id})
-        return render_template('user.html', user=current_user, posts=posts, avatar=avatar)
-    else:
-        avatar = User.avatar(username)
-        user = User.get_by_username(username)
-        aboutme = User.get_aboutme(username)
-        if user is None:
-            posts = []
-            return redirect('/error/user')
-        else:
-            posts = db.postdb.find({"user_id": user._id})
-    return render_template('user.html', avatar=avatar, user=user, posts=posts, aboutme=aboutme)
 
 
 @appx.route("/createnewpost", methods=['GET', 'POST'])
@@ -459,6 +474,18 @@ def logout():
     logout_user()
     return redirect('/')
 
+@appx.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        if request.method == 'POST':
+            email = request.form["email"]
+            User.reset_password(email)
+            flash(f'Your password has been reset!', 'success')
+            return redirect('/')
+    return render_template('reset_password.html', title='Reset Password', form=form)
+
 
 from waitress import serve
+
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])

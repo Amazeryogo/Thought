@@ -4,7 +4,7 @@
             <h1>{{post.title}}</h1>
             <p>by <a href="/{{post.username}}">{{post.username}}</a></p>
             <div class="markdown-body">
-                {{post.content}}
+                {{post.content | safe}}
             </div>
             {% if user == current_user %}
             <a href="/deletepost?post_id={{post._id}}"><button>🗑️</button></a> <br/>

@@ -6,14 +6,10 @@
 </style>
 {% block content %}
     <h1 class="bg-light" style="text-align: center">Sign Up or <a href="/login">Sign In</a> </h1>
-    <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-xs-12 bg-light">
-            <div class="row">
             <div class="col-md-4">
                 <form action="" method="post"  style="margin: auto; width: 220px;">
                     {% import "bootstrap/wtf.html" as wtf %}
                     {{ wtf.quick_form(form) }}
                 </form>
             </div>
-        </div>
-    </div>
 {% endblock %}

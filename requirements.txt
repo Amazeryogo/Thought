@@ -7,3 +7,4 @@ flask_pymongo
 flask_bootstrap
 dnspython
 waitress
+markdown
