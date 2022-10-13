@@ -1,4 +1,4 @@
-from flask import  *
+from flask import *
 from forms import *
 import os
 from flask_pymongo import *
@@ -250,11 +250,12 @@ def home():
         p2.append(i)
     return render_template('home.html', posts=p2)
 
+
 @appx.route('/favicon.ico')
 def favicon():
     # the favicon file is in the same directory as app.py
     return send_from_directory(os.path.join(appx.root_path, 'static'),
-                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @appx.route("/<username>")
@@ -365,8 +366,6 @@ def logoutapi():
     return "{\"comment\" : \" LOGGED OUT \"}"
 
 
-
-
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
 def createnewpost2():
@@ -471,7 +470,7 @@ def messagingdashboard():
     # get every last message from every user
     for i in c:
         p = Messages.get_last_message(current_user.username, i)
-        k.append([p,i])
+        k.append([p, i])
     return render_template('messaging_dashboard.html', k=k)
 
 
@@ -479,6 +478,7 @@ def messagingdashboard():
 def logout():
     logout_user()
     return redirect('/')
+
 
 @appx.route('/reset_password', methods=['GET', 'POST'])
 def reset_password():
