@@ -14,17 +14,15 @@
                   style="width: 180px; border-radius: 10px;">
               </div>
               <div class="flex-grow-1 ms-3">
-                <h5 class="mb-1">{{ user.username }}</h5>
-                <p class="mb-2 pb-1" style="color: #2b2a2a;">{{ user.aboutme }}</p>
-                <div class="d-flex justify-content-start rounded-3 p-2 mb-2"
-                  style="background-color: #efefef;">
+              {% if user.verified == true %}
+                  <h1 class="mb-1">{{ user.username }}<img src="static/verified.png" width="32" height="32" alt="Verified User."></h1>
+              {% else %}
+                  <h1 class="mb-1">{{ user.username }}</h1>
+              {% endif %}
+                <p class="mb-2 pb-1" style="color: #2b2a2a;">  {{ user.aboutme }}</p>
               {% if user != current_user %}
                 <div class="d-flex pt-1">
                     <button type="button" class="btn btn-outline-primary me-1 flex-grow-1" onclick="location.href='/message/{{ user.username }}'">Chat</button>
-                </div>
-              {% else %}
-                <div class="d-flex pt-1">
-                   <button type="button" class="btn btn-outline-primary me-1 flex-grow-1" onclick="location.href='/set/aboutme'">Settings</button>
                 </div>
               {% endif %}
               </div>

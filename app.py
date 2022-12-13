@@ -14,7 +14,7 @@ appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
 # get from heroku config variables
-appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
+appx.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB"
 mongo = PyMongo(appx)
 login = LoginManager(appx)
 login.login_view = '/login'
@@ -25,7 +25,7 @@ appx.config['FAVICON'] = 'favicon.ico'
 
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None,verified=False):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -38,6 +38,7 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
+        self.verified = verified
 
     def is_authenticated(self):
         return True
@@ -50,6 +51,9 @@ class User(UserMixin):
 
     def get_id(self):
         return self._id
+
+    def is_verified(self):
+        return self.verified
 
     @classmethod
     def get_by_username(cls, username):
@@ -116,7 +120,8 @@ class User(UserMixin):
             "_id": self._id,
             "aboutme": self.aboutme,
             "invcode": self.invcode,
-            "password": self.password
+            "password": self.password,
+            "verified": self.verified
         }
 
     @classmethod
@@ -231,6 +236,10 @@ class Post:
     def save_to_mongo(self):
         # make the content to markdown
         self.content = markdown.markdown(self.content)
+        if len(self.content) > 500:
+            self.content = self.content[0:501]
+        else:
+            pass
         db.postdb.insert_one(self.json())
 
 
@@ -368,7 +377,7 @@ def logoutapi():
 
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
-def createnewpost2():
+def createnewpost():
     form = PostForm()
     if form.validate_on_submit():
         if request.method == 'POST':
@@ -377,6 +386,8 @@ def createnewpost2():
             user_id = current_user._id
             new_post = Post(current_user.username, title, content, bruh.now().strftime('%Y-%m-%d %H:%M:%S')
                             , user_id)
+            if len(content) > 500:
+                flash(f'Only the first 500 chars will be saved.', 'danger')
             new_post.save_to_mongo()
             flash(f'Your post has been created!', 'success')
             return redirect('/me')
@@ -494,4 +505,4 @@ def reset_password():
 
 from waitress import serve
 
-serve(appx, host='0.0.0.0', port=os.environ['PORT'])
+serve(appx, host='0.0.0.0', port=8080)
