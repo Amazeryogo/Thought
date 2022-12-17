@@ -303,14 +303,19 @@ def register():
             email = request.form["email"]
             # invcode = request.form["invcode"]
             invcode = "idk123"
-            password = generate_password_hash(request.form["password"])  # .decode('utf-8')
-            find_user = User.get_by_email(email)
-            if find_user is None:
-                User.register(username, email, password, invcode)
-                flash(f'Account created for {form.username.data}!', 'success')
-                return redirect(url_for('home'))
+            p1 = request.form["password"]
+            p2 = request.form["password2"]
+            if p1 != p2:
+                flash(f'The passwords dont match','failure')
             else:
-                flash(f'Account already exists for {form.username.data}!', 'success')
+                password = generate_password_hash(request.form["password"])  # .decode('utf-8')
+                find_user = User.get_by_email(email)
+                if find_user is None:
+                    User.register(username, email, password, invcode)
+                    flash(f'Account created for {form.username.data}!', 'success')
+                    return redirect(url_for('home'))
+                else:
+                    flash(f'Account already exists for {form.username.data}!', 'success')
     return render_template('create.html', title='Register', form=form)
 
 
