@@ -341,6 +341,9 @@ def api_about():
     }
     return str(uhh)
 
+@appx.route('/error/user')
+def erroruser():
+    return render_template('errors/404_user.html')
 
 @appx.route("/api/register", methods=['GET', 'POST'])
 def registerapi():
@@ -443,6 +446,7 @@ def settings():
 @appx.errorhandler(404)
 def page_not_found(e):
     return render_template('errors/404.html')
+appx.register_error_handler(404,page_not_found )
 
 
 @appx.route('/mes/<username>')
@@ -482,6 +486,8 @@ def messagingdashboard():
     for i in c:
         p = Messages.get_last_message(current_user.username, i)
         k.append([p, i])
+    if len(k) == 0:
+        k = None
     return render_template('messaging_dashboard.html', k=k)
 
 
@@ -504,5 +510,4 @@ def reset_password():
 
 
 from waitress import serve
-
 serve(appx, host='0.0.0.0', port=8080)
