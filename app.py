@@ -515,4 +515,4 @@ def reset_password():
 
 
 from waitress import serve
-serve(appx, host='0.0.0.0', port=8080)
+serve(appx, host='127.0.0.1', port=8080)
