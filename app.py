@@ -1,20 +1,23 @@
-from flask import *
-from forms import *
 import os
-from flask_pymongo import *
-from flask_login import *
-from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
-from hashlib import md5
 from datetime import datetime as bruh
+from hashlib import md5
+
 import flask_bootstrap
 import markdown
+from flask import *
+from flask_login import *
+from flask_pymongo import *
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
+from forms import *
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
 # get from heroku config variables
-appx.config["MONGO_URI"] = "mongodb://localhost:27017/ThoughtDB"
+appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
 mongo = PyMongo(appx)
 login = LoginManager(appx)
 login.login_view = '/login'
@@ -23,9 +26,8 @@ db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
 
-
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None,verified=False):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -38,7 +40,6 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
-        self.verified = verified
 
     def is_authenticated(self):
         return True
@@ -51,9 +52,6 @@ class User(UserMixin):
 
     def get_id(self):
         return self._id
-
-    def is_verified(self):
-        return self.verified
 
     @classmethod
     def get_by_username(cls, username):
@@ -120,8 +118,7 @@ class User(UserMixin):
             "_id": self._id,
             "aboutme": self.aboutme,
             "invcode": self.invcode,
-            "password": self.password,
-            "verified": self.verified
+            "password": self.password
         }
 
     @classmethod
@@ -236,10 +233,6 @@ class Post:
     def save_to_mongo(self):
         # make the content to markdown
         self.content = markdown.markdown(self.content)
-        if len(self.content) > 500:
-            self.content = self.content[0:501]
-        else:
-            pass
         db.postdb.insert_one(self.json())
 
 
@@ -303,19 +296,14 @@ def register():
             email = request.form["email"]
             # invcode = request.form["invcode"]
             invcode = "idk123"
-            p1 = request.form["password"]
-            p2 = request.form["password2"]
-            if p1 != p2:
-                flash(f'The passwords dont match','failure')
+            password = generate_password_hash(request.form["password"])  # .decode('utf-8')
+            find_user = User.get_by_email(email)
+            if find_user is None:
+                User.register(username, email, password, invcode)
+                flash(f'Account created for {form.username.data}!', 'success')
+                return redirect(url_for('home'))
             else:
-                password = generate_password_hash(request.form["password"])  # .decode('utf-8')
-                find_user = User.get_by_email(email)
-                if find_user is None:
-                    User.register(username, email, password, invcode)
-                    flash(f'Account created for {form.username.data}!', 'success')
-                    return redirect(url_for('home'))
-                else:
-                    flash(f'Account already exists for {form.username.data}!', 'success')
+                flash(f'Account already exists for {form.username.data}!', 'success')
     return render_template('create.html', title='Register', form=form)
 
 
@@ -346,9 +334,6 @@ def api_about():
     }
     return str(uhh)
 
-@appx.route('/error/user')
-def erroruser():
-    return render_template('errors/404_user.html')
 
 @appx.route("/api/register", methods=['GET', 'POST'])
 def registerapi():
@@ -385,7 +370,7 @@ def logoutapi():
 
 @appx.route("/createnewpost", methods=['GET', 'POST'])
 @login_required
-def createnewpost():
+def createnewpost2():
     form = PostForm()
     if form.validate_on_submit():
         if request.method == 'POST':
@@ -394,8 +379,6 @@ def createnewpost():
             user_id = current_user._id
             new_post = Post(current_user.username, title, content, bruh.now().strftime('%Y-%m-%d %H:%M:%S')
                             , user_id)
-            if len(content) > 500:
-                flash(f'Only the first 500 chars will be saved.', 'danger')
             new_post.save_to_mongo()
             flash(f'Your post has been created!', 'success')
             return redirect('/me')
@@ -410,16 +393,6 @@ def deletepost():
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
 
-
-@appx.route('/deletemsg')
-@login_required
-def deletemsg():
-    x = request.args
-    msg_id = x.get("msg_id")
-    red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id})
-    red = "/mes/" + red
-    return redirect(red)
 
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
@@ -451,49 +424,7 @@ def settings():
 @appx.errorhandler(404)
 def page_not_found(e):
     return render_template('errors/404.html')
-appx.register_error_handler(404,page_not_found )
 
-
-@appx.route('/mes/<username>')
-def mes(username):
-    chat = Messages.get_chat(current_user.username, username)
-    return render_template('mes.html', messages=chat)
-
-
-@appx.route("/message/<username>", methods=['GET', 'POST'])
-@login_required
-def message(username):
-    hmm = MessageForm()
-    if hmm.validate_on_submit():
-        if request.method == 'POST':
-            message = request.form["message"]
-            h = '/sendmessage' + '?username=' + username + '&message=' + message
-            return redirect(h)
-    return render_template('messages.html', username=username, form=hmm)
-
-
-@appx.route("/sendmessage", methods=['GET', 'POST'])
-@login_required
-def sendmessage():
-    x = request.args
-    username = x.get("username")
-    message = x.get("message")
-    Messages.send_message(current_user.username, username, message)
-    return redirect('/message/' + username)
-
-
-@appx.route("/messaging/dashboard", methods=['GET', 'POST'])
-@login_required
-def messagingdashboard():
-    k = []
-    c = Messages.get_users()
-    # get every last message from every user
-    for i in c:
-        p = Messages.get_last_message(current_user.username, i)
-        k.append([p, i])
-    if len(k) == 0:
-        k = None
-    return render_template('messaging_dashboard.html', k=k)
 
 
 @appx.route('/logout', methods=['GET', 'POST'])
@@ -515,4 +446,4 @@ def reset_password():
 
 
 from waitress import serve
-serve(appx, host='127.0.0.1', port=8080)
+serve(appx, host='0.0.0.0', port=os.environ['PORT'])
