@@ -8,3 +8,4 @@ flask_bootstrap
 dnspython
 waitress
 markdown
+flask-socketio

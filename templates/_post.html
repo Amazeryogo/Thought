@@ -1,10 +1,13 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville&display=swap" rel="stylesheet">
 <div class="card border-active mx-auto mb-3" style="max-width: 75%">
       <div class="card-body">
-              <h2 class="card-title">{{ post.title }}</h2>
+              <h2 class="card-title" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
           <p class="card-subtitle mb-2 ">by <a href="/{{post.username}}">{{ post.username }}</a></p>
             <div class="card-text">{{ post.content | safe }}</div>
           {% if user == current_user %}
-            <a href="/deletepost?post_id={{post._id}}" class="btn btn-warning">🗑️</a> <br/>
+            <a href="/deletepost?post_id={{post._id}}"><span class="material-symbols-outlined">cancel</span></a> <br/>
           {% endif %}
       </div>
       </div>

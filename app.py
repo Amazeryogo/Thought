@@ -1,14 +1,17 @@
-from flask import *
-from forms import *
 import os
-from flask_pymongo import *
-from flask_login import *
-from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
-from hashlib import md5
 from datetime import datetime as bruh
+from hashlib import md5
+
 import flask_bootstrap
 import markdown
+from flask import *
+from flask_login import *
+from flask_pymongo import *
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
+from forms import *
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -22,7 +25,6 @@ appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
-
 
 class User(UserMixin):
     def __init__(self, username, email, password, invcode, _id=None, aboutme=None):
@@ -392,16 +394,6 @@ def deletepost():
     return redirect('/me')
 
 
-@appx.route('/deletemsg')
-@login_required
-def deletemsg():
-    x = request.args
-    msg_id = x.get("msg_id")
-    red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id})
-    red = "/mes/" + red
-    return redirect(red)
-
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
@@ -434,45 +426,6 @@ def page_not_found(e):
     return render_template('errors/404.html')
 
 
-@appx.route('/mes/<username>')
-def mes(username):
-    chat = Messages.get_chat(current_user.username, username)
-    return render_template('mes.html', messages=chat)
-
-
-@appx.route("/message/<username>", methods=['GET', 'POST'])
-@login_required
-def message(username):
-    hmm = MessageForm()
-    if hmm.validate_on_submit():
-        if request.method == 'POST':
-            message = request.form["message"]
-            h = '/sendmessage' + '?username=' + username + '&message=' + message
-            return redirect(h)
-    return render_template('messages.html', username=username, form=hmm)
-
-
-@appx.route("/sendmessage", methods=['GET', 'POST'])
-@login_required
-def sendmessage():
-    x = request.args
-    username = x.get("username")
-    message = x.get("message")
-    Messages.send_message(current_user.username, username, message)
-    return redirect('/message/' + username)
-
-
-@appx.route("/messaging/dashboard", methods=['GET', 'POST'])
-@login_required
-def messagingdashboard():
-    k = []
-    c = Messages.get_users()
-    # get every last message from every user
-    for i in c:
-        p = Messages.get_last_message(current_user.username, i)
-        k.append([p, i])
-    return render_template('messaging_dashboard.html', k=k)
-
 
 @appx.route('/logout', methods=['GET', 'POST'])
 def logout():
@@ -493,5 +446,4 @@ def reset_password():
 
 
 from waitress import serve
-
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])

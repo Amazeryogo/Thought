@@ -1,42 +1,47 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <section class="vh-100">
-  <div class="container py-5 h-100">
-    <div class="row d-flex justify-content-center align-items-center h-100">
-      <div class="col col-md-9 col-lg-7 col-xl-5">
+<h1 style="text-align: center; font-family: 'Abril Fatface', cursive;">{{ user.username }}</h1>
+<section class="vh-100">
+  <div class="container py-5">
+    <div class="row d-flex justify-content-center align-items-center">
+      <div class="col-md-9 col-lg-7 col-xl-5">
         <div class="card" style="border-radius: 15px;">
           <div class="card-body p-4">
-            <div class="d-flex text-black">
+            <div class="d-flex align-items-start">
               <div class="flex-shrink-0">
-                <img src="{{ avatar }}"
-                  alt="Generic placeholder image" class="img-fluid"
+                <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo"
                   style="width: 180px; border-radius: 10px;">
               </div>
               <div class="flex-grow-1 ms-3">
-                <h5 class="mb-1">{{ user.username }}</h5>
-                <p class="mb-2 pb-1" style="color: #2b2a2a;">{{ user.aboutme }}</p>
-                <div class="d-flex justify-content-start rounded-3 p-2 mb-2"
-                  style="background-color: #efefef;">
-              {% if user != current_user %}
-                <div class="d-flex pt-1">
-                    <button type="button" class="btn btn-outline-primary me-1 flex-grow-1" onclick="location.href='/message/{{ user.username }}'">Chat</button>
+                <h4 class="mb-2" style="color: #2b2a2a;">About Me:</h4>
+                <p class="mb-4" style="color: #2b2a2a;">{{ user.aboutme }}</p>
+                <div class="d-flex justify-content-start rounded-3 p-2 mb-2">
+                  {% if user == current_user %}
+                  <!-- Your user-specific actions/buttons here -->
+                  {% else %}
+                  <!-- Other actions/buttons for different user -->
+                  {% endif %}
                 </div>
-              {% else %}
-                <div class="d-flex pt-1">
-                   <button type="button" class="btn btn-outline-primary me-1 flex-grow-1" onclick="location.href='/set/aboutme'">Settings</button>
-                </div>
-              {% endif %}
               </div>
             </div>
+            {% if user == current_user %}
+                <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'">manage_accounts</span>
+            {% else %}
+                <!-- Additional content for other user -->
+            {% endif %}
           </div>
         </div>
       </div>
     </div>
   </div>
-  </div>
 </section>
 
+<style>
+  .profile-photo {
+    margin-bottom: 20px;
+  }
+</style>
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
