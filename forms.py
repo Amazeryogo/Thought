@@ -14,7 +14,7 @@ class CreateUserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired()])
-    submit = SubmitField('Create User')
+    submit = SubmitField('Join Thought')
 
 
 class PostForm(FlaskForm):
@@ -25,7 +25,7 @@ class PostForm(FlaskForm):
 
 class AboutMeForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired()])
-    content = TextAreaField('aboutme', validators=[DataRequired()])
+    content = TextAreaField('About Me', validators=[DataRequired()])
     submit = SubmitField('Update')
 
 

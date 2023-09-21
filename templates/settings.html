@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Settings</h1>
+<h1 style="text-align: center;font-family: font-family: 'Roboto Slab', serif;">Settings</h1>
 <div>
         <div class="col">
             <form action="" method="post" class="form-control">
@@ -16,4 +16,6 @@
     <form action="{{ url_for('logout') }}" method="post">
         <input type="submit" value="Logout" class="btn btn-primary">
     </form>
+</div>
+</div>
 {% endblock %}

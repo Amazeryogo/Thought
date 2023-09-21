@@ -277,7 +277,7 @@ def user(username):
         aboutme = User.get_aboutme(username)
         if user is None:
             p2 = []
-            return redirect('/error/user')
+            return redirect('/404')
         else:
             posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
             p2 = []
@@ -425,6 +425,9 @@ def settings():
 def page_not_found(e):
     return render_template('errors/404.html')
 
+@appx.route('/404')
+def x404():
+    return render_template('errors/404.html')
 
 
 @appx.route('/logout', methods=['GET', 'POST'])
