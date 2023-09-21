@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    /* Styles for the chat container */
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    /* Styles for the chat iframe */
+    #chat-iframe {
+        border: none;
+        background-color: #f5f5f5; /* Background color for the chat area */
+        flex-grow: 1; /* Expand to fill available space */
+    }
+
+    /* Styles for the chat input form */
+    .chat-form {
+        padding: 10px;
+        background-color: #fff;
+        border-top: 1px solid #ccc;
+    }
+</style>
+
+<div class="chat-container">
+    <!-- Chat iframe -->
+    <iframe id="chat-iframe" src="/mes/{{ username }}" scrolling="yes"></iframe>
+
+    <!-- Chat input form -->
+    <div class="chat-form">
+        <form action="" method="post">
+            {% import "bootstrap/wtf.html" as wtf %}
+            {{ wtf.quick_form(form) }}
+        </form>
+    </div>
+</div>
+
+<script>
+    // JavaScript code to scroll to the bottom of the iframe
+    var chatIframe = document.getElementById('chat-iframe');
+
+    // Function to scroll the iframe to the bottom
+    function scrollToBottom() {
+        chatIframe.contentWindow.scrollTo(0, chatIframe.contentDocument.body.scrollHeight);
+    }
+
+    // Automatically scroll to the bottom when the iframe loads or when new content is added
+    chatIframe.onload = scrollToBottom;
+</script>
+
+{% endblock %}

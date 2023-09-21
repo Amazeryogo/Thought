@@ -16,7 +16,6 @@ from forms import *
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
-# get from heroku config variables
 appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
 mongo = PyMongo(appx)
 login = LoginManager(appx)
@@ -40,6 +39,8 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
+        self.followers = []
+        self.following = []
 
     def is_authenticated(self):
         return True
@@ -129,9 +130,18 @@ class User(UserMixin):
             digest = md5(email.lower().encode('utf-8')).hexdigest()
             return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
                 digest, 128)
+    def get_followers(self):
+        return len(self.followers)
+
+    def get_following(self):
+        return len(self.following)
 
     def save_to_mongo(self):
         db.userdb.insert_one(self.json())
+
+    @classmethod
+    def reset_password(cls, email):
+        pass
 
 
 class Messages:
@@ -197,6 +207,7 @@ class Messages:
         chats.sort(key=lambda x: x["timestamp"])
         # return the last message and the sender
         return [i for i in chats][-1]
+
 
 
 class Post:
@@ -447,6 +458,53 @@ def reset_password():
             return redirect('/')
     return render_template('reset_password.html', title='Reset Password', form=form)
 
+@appx.route("/messaging/dashboard", methods=['GET', 'POST'])
+@login_required
+def messagingdashboard():
+    k = []
+    c = Messages.get_users()
+    for i in c:
+        p = Messages.get_last_message(current_user.username, i)
+        k.append([p, i])
+    if len(k) == 0:
+        k = None
+    return render_template('mdashboard.html', k=k)
+
+@appx.route('/deletemsg')
+@login_required
+def deletemsg():
+    x = request.args
+    msg_id = x.get("msg_id")
+    red = x.get("redirect")
+    db.messagesdb.delete_one({"_id": msg_id})
+    red = "/mes/" + red
+    return redirect(red)
+
+@appx.route("/sendmessage", methods=['GET', 'POST'])
+@login_required
+def sendmessage():
+    x = request.args
+    username = x.get("username")
+    message = x.get("message")
+    Messages.send_message(current_user.username, username, message)
+    return redirect('/message/' + username)
+
+@appx.route('/mes/<username>')
+def mes(username):
+    chat = Messages.get_chat(current_user.username, username)
+    return render_template('mes.html', messages=chat)
+
+
+@appx.route("/message/<username>", methods=['GET', 'POST'])
+@login_required
+def message(username):
+    hmm = MessageForm()
+    if hmm.validate_on_submit():
+        if request.method == 'POST':
+            message = request.form["message"]
+            h = '/sendmessage' + '?username=' + username + '&message=' + message
+            return redirect(h)
+    return render_template('message-page.html', username=username, form=hmm)
 
 from waitress import serve
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])

@@ -1,0 +1,6 @@
+Messaging (done)
+password reset
+following
+fixing the profile card
+Image support for posts
+private/public posts

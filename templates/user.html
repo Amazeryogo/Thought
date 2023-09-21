@@ -28,7 +28,7 @@
             {% if user == current_user %}
                 <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'">manage_accounts</span>
             {% else %}
-                <!-- Additional content for other user -->
+                <span class="material-symbols-outlined" onclick="location.href='/message/{{user.username}}'">forum</span>
             {% endif %}
           </div>
         </div>
