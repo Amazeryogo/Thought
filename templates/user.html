@@ -2,47 +2,38 @@
 
 {% block content %}
 <h1 style="text-align: center; font-family: 'Abril Fatface', cursive;">{{ user.username }}</h1>
-<section class="vh-100">
-  <div class="container py-5">
-    <div class="row d-flex justify-content-center align-items-center">
-      <div class="col-md-9 col-lg-7 col-xl-5">
-        <div class="card" style="border-radius: 15px;">
-          <div class="card-body p-4">
-            <div class="d-flex align-items-start">
-              <div class="flex-shrink-0">
-                <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo"
-                  style="width: 180px; border-radius: 10px;">
-              </div>
-              <div class="flex-grow-1 ms-3">
-                <h4 class="mb-2" style="color: #2b2a2a;">About Me:</h4>
-                <p class="mb-4" style="color: #2b2a2a;">{{ user.aboutme }}</p>
-                <div class="d-flex justify-content-start rounded-3 p-2 mb-2">
-                  {% if user == current_user %}
-                  <!-- links -->
-                  {% else %}
-                  <!-- messenger -->
-                  {% endif %}
+<div class="container py-5">
+    <div class="row justify-content-center align-items-center">
+        <div class="col-md-9 col-lg-7 col-xl-5">
+            <div class="card rounded-3">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start">
+                        <div class="flex-shrink-0">
+                            <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo">
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <p class="mb-4">{{ user.aboutme }}</p>
+                            <div class="d-flex justify-content-start rounded-3 p-2 mb-2">
+                                {% if user == current_user %}
+                                <!-- links for current user -->
+                                {% else %}
+                                <!-- messenger for other users -->
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if user == current_user %}
+                    <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'">manage_accounts</span>
+                    {% else %}
+                  <span class="material-symbols-outlined" onclick="location.href='/message/{{user.username}}'">forum</span>
+                    {% endif %}
                 </div>
-              </div>
             </div>
-            {% if user == current_user %}
-                <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'">manage_accounts</span>
-            {% else %}
-                <span class="material-symbols-outlined" onclick="location.href='/message/{{user.username}}'">forum</span>
-            {% endif %}
-          </div>
         </div>
-      </div>
     </div>
-  </div>
-</section>
+</div>
 
-<style>
-  .profile-photo {
-    margin-bottom: 20px;
-  }
-</style>
-    {% for post in posts %}
-    {% include '_post.html' %}
-    {% endfor %}
+{% for post in posts %}
+{% include '_post.html' %}
+{% endfor %}
 {% endblock %}

@@ -10,7 +10,6 @@ from flask_login import *
 from flask_pymongo import *
 from werkzeug.security import generate_password_hash, check_password_hash
 
-
 from forms import *
 
 appx = Flask(__name__)
@@ -24,6 +23,7 @@ appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
+
 
 class User(UserMixin):
     def __init__(self, username, email, password, invcode, _id=None, aboutme=None):
@@ -119,7 +119,9 @@ class User(UserMixin):
             "_id": self._id,
             "aboutme": self.aboutme,
             "invcode": self.invcode,
-            "password": self.password
+            "password": self.password,
+            "followers": self.followers,
+            "following": self.following
         }
 
     @classmethod
@@ -130,11 +132,18 @@ class User(UserMixin):
             digest = md5(email.lower().encode('utf-8')).hexdigest()
             return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
                 digest, 128)
+
     def get_followers(self):
         return len(self.followers)
 
     def get_following(self):
         return len(self.following)
+
+    def add_follower(self, id):
+        self.followers.append(id)
+
+    def add_following(self, id):
+        self.following.append(id)
 
     def save_to_mongo(self):
         db.userdb.insert_one(self.json())
@@ -207,7 +216,6 @@ class Messages:
         chats.sort(key=lambda x: x["timestamp"])
         # return the last message and the sender
         return [i for i in chats][-1]
-
 
 
 class Post:
@@ -388,7 +396,7 @@ def createnewpost2():
             title = request.form["title"]
             content = request.form["content"]
             user_id = current_user._id
-            new_post = Post(current_user.username, title, content, bruh.now().strftime('%Y-%m-%d %H:%M:%S')
+            new_post = Post(current_user.username, title, content, bruh.now().strftime('%H:%M:%S %Y-%m-%d ')
                             , user_id)
             new_post.save_to_mongo()
             flash(f'Your post has been created!', 'success')
@@ -403,7 +411,6 @@ def deletepost():
     post_id = x.get("post_id")
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
-
 
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
@@ -436,6 +443,7 @@ def settings():
 def page_not_found(e):
     return render_template('errors/404.html')
 
+
 @appx.route('/404')
 def x404():
     return render_template('errors/404.html')
@@ -458,6 +466,7 @@ def reset_password():
             return redirect('/')
     return render_template('reset_password.html', title='Reset Password', form=form)
 
+
 @appx.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
@@ -470,6 +479,7 @@ def messagingdashboard():
         k = None
     return render_template('mdashboard.html', k=k)
 
+
 @appx.route('/deletemsg')
 @login_required
 def deletemsg():
@@ -480,6 +490,7 @@ def deletemsg():
     red = "/mes/" + red
     return redirect(red)
 
+
 @appx.route("/sendmessage", methods=['GET', 'POST'])
 @login_required
 def sendmessage():
@@ -488,6 +499,7 @@ def sendmessage():
     message = x.get("message")
     Messages.send_message(current_user.username, username, message)
     return redirect('/message/' + username)
+
 
 @appx.route('/mes/<username>')
 def mes(username):
@@ -506,5 +518,7 @@ def message(username):
             return redirect(h)
     return render_template('message-page.html', username=username, form=hmm)
 
+
 from waitress import serve
+
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])

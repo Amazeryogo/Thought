@@ -9,6 +9,8 @@
           {% if user == current_user %}
             <a href="/deletepost?post_id={{post._id}}"><span class="material-symbols-outlined">cancel</span></a> <br/>
           {% endif %}
+          <p class="card-subtitle mb-2 " style="color: grey">Posted on {{post.timestamp}}</a></p>
+
       </div>
       </div>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
