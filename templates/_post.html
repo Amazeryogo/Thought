@@ -8,8 +8,11 @@
             <div class="card-text">{{ post.content | safe }}</div>
           {% if user == current_user %}
             <a href="/deletepost?post_id={{post._id}}"><span class="material-symbols-outlined">cancel</span></a> <br/>
+          {% else %}
+          <a href="/like?post_id={{post._id}}"><span class="material-symbols-outlined">thumb_up</span> {{post.likes}}</a>
+          <a href="/dislike?post_id={{post._id}}"><span class="material-symbols-outlined">thumb_down</span> {{post.dislikes}}</a>
           {% endif %}
-          <p class="card-subtitle mb-2 " style="color: grey">Posted on {{post.timestamp}}</a></p>
+          <p class="card-subtitle mb-2 " style="color: grey">{{post.timestamp}}</a></p>
 
       </div>
       </div>

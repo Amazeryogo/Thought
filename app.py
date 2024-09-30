@@ -217,7 +217,7 @@ class Messages:
         # return the last message and the sender
         return [i for i in chats][-1]
 
-
+######################################################################################
 class Post:
     def __init__(self, username, title, content, timestamp, user_id, _id=None):
         self.title = title
@@ -225,6 +225,9 @@ class Post:
         self.user_id = user_id
         self.username = username
         self.timestamp = timestamp
+        self.likes = 0
+        self.r_ = []
+        self.dislikes = 0
         self._id = uuid.uuid4().hex if _id is None else _id
 
     def json(self):
@@ -234,7 +237,10 @@ class Post:
             "user_id": self.user_id,
             "_id": self._id,
             "timestamp": self.timestamp,
-            "username": self.username
+            "username": self.username,
+            "likes": self.likes,
+            "r_": self.r_,
+            "dislikes": self.dislikes
         }
 
     @classmethod
@@ -242,6 +248,30 @@ class Post:
         data = db.postdb.find_one({"_id": _id})
         if data is not None:
             return cls(**data)
+
+    @classmethod
+    def liked(cls,_id,userx):
+        data = db.postdb.find_one({"_id": _id})
+        print(data)
+        if userx in data["r_"]:
+            pass
+        else:
+            data['r_'].append(userx)
+            p = data['r_']
+            db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']+1}})
+            db.postdb.update_one({"_id": _id}, {"$set": {"r_": p }})
+
+    @classmethod
+    def disliked(cls,_id,userx):
+        data = db.postdb.find_one({"_id": _id})
+        print(data)
+        if userx in data["r_"]:
+            pass
+        else:
+            data['r_'].append(userx)
+            p = data['r_']
+            db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']+1}})
+            db.postdb.update_one({"_id": _id}, {"$set": {"r_": p}})
 
     @classmethod
     def get_by_user_id(cls, user_id):
@@ -412,6 +442,21 @@ def deletepost():
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
 
+@appx.route("/like", methods=['GET', 'POST'])
+@login_required
+def like():
+    x = request.args
+    post_id = x.get("post_id")
+    Post.liked(_id=post_id,userx=current_user.username) #fix it later
+    return redirect(url_for('home')) # this also
+
+@appx.route("/dislike", methods=['GET', 'POST'])
+@login_required
+def dislike():
+    x = request.args
+    post_id = x.get("post_id")
+    Post.disliked(_id=post_id,userx=current_user.username) #fix it later
+    return redirect(url_for('home')) # this also
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required

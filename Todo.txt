@@ -4,3 +4,8 @@ following
 fixing the profile card
 Image support for posts
 private/public posts
+liking posts
+
+"likes": 0,
+"dislikes": 0,
+"r_" : []
