@@ -520,5 +520,6 @@ def message(username):
 
 
 from waitress import serve
-
+print("Starting Thought at")
+print("http://0.0.0.0:8080")
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])
