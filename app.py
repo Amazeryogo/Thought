@@ -252,26 +252,32 @@ class Post:
     @classmethod
     def liked(cls,_id,userx):
         data = db.postdb.find_one({"_id": _id})
-        print(data)
         if userx in data["r_"]:
-            pass
-        else:
-            data['r_'].append(userx)
+            data['r_'].remove(userx)
             p = data['r_']
-            db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']+1}})
+            db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']-1}})
             db.postdb.update_one({"_id": _id}, {"$set": {"r_": p }})
+        else:
+            if userx != data['username']:
+                data['r_'].append(userx)
+                p = data['r_']
+                db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']+1}})
+                db.postdb.update_one({"_id": _id}, {"$set": {"r_": p }})
 
     @classmethod
     def disliked(cls,_id,userx):
         data = db.postdb.find_one({"_id": _id})
-        print(data)
         if userx in data["r_"]:
-            pass
-        else:
-            data['r_'].append(userx)
+            data['r_'].remove(userx)
             p = data['r_']
-            db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']+1}})
+            db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']-1}})
             db.postdb.update_one({"_id": _id}, {"$set": {"r_": p}})
+        else:
+            if userx != data['username']:
+                data['r_'].append(userx)
+                p = data['r_']
+                db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']+1}})
+                db.postdb.update_one({"_id": _id}, {"$set": {"r_": p}})
 
     @classmethod
     def get_by_user_id(cls, user_id):
