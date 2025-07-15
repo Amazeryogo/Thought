@@ -9,7 +9,7 @@ from flask_login import *
 from flask_pymongo import *
 from werkzeug.security import generate_password_hash, check_password_hash
 from forms import *
-
+from werkzeug.utils import secure_filename
 
 
 
@@ -25,6 +25,7 @@ appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
+IMAGED = "static"
 
 
 class User(UserMixin):
@@ -360,32 +361,82 @@ def api_send_message():
     return jsonify(new_msg)
 
 
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@appx.route("/upload/image", methods=["GET", "POST"])
+@login_required
+def upload_image():
+    if request.method == "POST":
+        if "image" not in request.files:
+            flash("No file part", "danger")
+            return redirect(request.url)
+
+        file = request.files["image"]
+        if file.filename == "":
+            flash("No selected file", "warning")
+            return redirect(request.url)
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            user_folder = os.path.join(IMAGED, current_user._id)
+            os.makedirs(user_folder, exist_ok=True)
+
+            save_path = os.path.join(user_folder, filename)
+            file.save(save_path)
+
+            flash("Image uploaded successfully!", "success")
+            return redirect(url_for("render_image", imageuid=filename))
+
+        flash("Invalid file type!", "danger")
+        return redirect(request.url)
+
+    return render_template("upload_image.html")
+
+@appx.route("/image/<imageuid>", methods=["GET", "POST"])
+@login_required
+def render_image(imageuid):
+    return send_from_directory(IMAGED + "/" + current_user._id, imageuid)
+
+
 @appx.route("/<username>")
 @login_required
 def user(username):
     if username == "me":
-        avatar = User.avatar(current_user.username)
-        posts = db.postdb.find({"user_id": current_user._id}).sort("timestamp", DESCENDING).limit(10)
-        p2 = []
-        for i in posts:
-            i['content'] = markdown.markdown(i['content'])
-            p2.append(i)
-        return render_template('user.html', user=current_user, posts=p2, avatar=avatar)
+        user = current_user
     else:
-        avatar = User.avatar(username)
         user = User.get_by_username(username)
-        aboutme = User.get_aboutme(username)
         if user is None:
-            p2 = []
             return redirect('/404')
-        else:
-            posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
-            p2 = []
-            for i in posts:
-                i['content'] = markdown.markdown(i['content'])
-                p2.append(i)
-    return render_template('user.html', avatar=avatar, user=user, posts=p2, aboutme=aboutme)
 
+    avatar = User.avatar(user.username)
+    aboutme = User.get_aboutme(user.username)
+
+    # Get posts
+    posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
+    p2 = []
+    for post in posts:
+        post['content'] = markdown.markdown(post['content'])
+        p2.append(post)
+
+    # Gallery: fetch all images from user-specific folder
+    image_dir = os.path.join(IMAGED, user._id)
+    user_images = []
+    if os.path.exists(image_dir):
+        user_images = [f for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+
+    return render_template(
+        'user.html',
+        user=user,
+        posts=p2,
+        avatar=avatar,
+        aboutme=aboutme,
+        user_images=user_images
+    )
 
 @appx.route("/register", methods=['GET', 'POST'])
 def register():
@@ -468,7 +519,7 @@ def logoutapi():
     return "{\"comment\" : \" LOGGED OUT \"}"
 
 
-@appx.route("/createnewpost", methods=['GET', 'POST'])
+@appx.route("/upload/post", methods=['GET', 'POST'])
 @login_required
 def createnewpost2():
     form = PostForm()

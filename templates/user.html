@@ -74,5 +74,24 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 </script>
+<hr class="my-5">
+
+<div class="container">
+    <h3 class="text-center mb-4" style="font-family: 'Roboto Slab', serif;">📸 Gallery</h3>
+
+    {% if user_images %}
+    <div class="row g-3">
+        {% for img in user_images %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <img src="{{ url_for('render_image', imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center text-muted">No images uploaded yet.</p>
+    {% endif %}
+</div>
 
 {% endblock %}
