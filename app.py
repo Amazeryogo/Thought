@@ -25,7 +25,7 @@ appx.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
-IMAGED = "static"
+IMAGED = os.environ.get("IMAGES_PATH")
 
 
 class User(UserMixin):
