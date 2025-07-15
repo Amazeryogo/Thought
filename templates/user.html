@@ -12,20 +12,26 @@
                             <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo">
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <p class="mb-4">{{ user.aboutme }}</p>
-                            <div class="d-flex justify-content-start rounded-3 p-2 mb-2">
-                                {% if user == current_user %}
-                                <!-- links for current user -->
-                                {% else %}
-                                <!-- messenger for other users -->
-                                {% endif %}
-                            </div>
+                            <p class="mb-4">{{ aboutme }}</p>
+                            <p class="mb-1"><strong>Followers:</strong> {{ user.get_followers_number() }}</p>
+                            <p class="mb-4"><strong>Following:</strong> {{ user.get_following_number() }}</p>
+
+                            {% if current_user.username != user.username %}
+                                <div class="d-flex justify-content-start mt-3">
+                                    {% if current_user.username in user.followers %}
+                                        <a href="{{ url_for('toggle_follow', username=user.username) }}" class="btn btn-danger">Unfollow</a>
+                                    {% else %}
+                                        <a href="{{ url_for('toggle_follow', username=user.username) }}" class="btn btn-primary">Follow</a>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
-                    {% if user == current_user %}
-                    <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'">manage_accounts</span>
+
+                    {% if user.username == current_user.username %}
+                        <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'" style="cursor: pointer;">manage_accounts</span>
                     {% else %}
-                  <span class="material-symbols-outlined" onclick="location.href='/message/{{user.username}}'">forum</span>
+                        <span class="material-symbols-outlined" onclick="location.href='/message/{{ user.username }}'" style="cursor: pointer;">forum</span>
                     {% endif %}
                 </div>
             </div>
@@ -34,6 +40,6 @@
 </div>
 
 {% for post in posts %}
-{% include '_post.html' %}
+    {% include '_post.html' %}
 {% endfor %}
 {% endblock %}

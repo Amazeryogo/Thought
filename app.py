@@ -2,15 +2,17 @@ import os
 import uuid
 from datetime import datetime as bruh
 from hashlib import md5
-
 import flask_bootstrap
 import markdown
 from flask import *
 from flask_login import *
 from flask_pymongo import *
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from forms import *
+
+
+
+
 
 appx = Flask(__name__)
 SECRET_KEY = os.urandom(32)
@@ -26,7 +28,7 @@ appx.config['FAVICON'] = 'favicon.ico'
 
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -39,9 +41,12 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
-        self.followers = []
-        self.following = []
-
+        try:
+            self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
+            self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
+        except:
+            self.followers = []
+            self.following = []
     def is_authenticated(self):
         return True
 
@@ -53,7 +58,10 @@ class User(UserMixin):
 
     def get_id(self):
         return self._id
-
+    def get_followers(self):
+        return db.userdb.find_one({"_id": self._id}).get("followers", [])
+    def get_following(self):
+        return db.userdb.find_one({"_id": self._id}).get("following", [])
     @classmethod
     def get_by_username(cls, username):
         data = db.userdb.find_one({"username": username})
@@ -133,11 +141,11 @@ class User(UserMixin):
             return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
                 digest, 128)
 
-    def get_followers(self):
-        return len(self.followers)
+    def get_followers_number(self):
+        return len(self.get_followers())
 
-    def get_following(self):
-        return len(self.following)
+    def get_following_number(self):
+        return len(self.get_following())
 
     def add_follower(self, id):
         self.followers.append(id)
@@ -147,6 +155,9 @@ class User(UserMixin):
 
     def save_to_mongo(self):
         db.userdb.insert_one(self.json())
+
+    def email(self):
+        return self.email
 
     @classmethod
     def reset_password(cls, email):
@@ -170,7 +181,6 @@ class Messages:
             "_id": self._id
         }
 
-    # a function that compiles a chat between two users and sort them by timestamps
     @classmethod
     def get_chat(cls, user1, user2):
         chats = db.messagesdb.find(
@@ -206,7 +216,7 @@ class Messages:
     def save_to_mongo(self):
         db.messagesdb.insert_one(self.json())
 
-    # get the last message that was sent
+
     @classmethod
     def get_last_message(cls, user1, user2):
         chats = db.messagesdb.find(
@@ -286,7 +296,6 @@ class Post:
             return cls(**data)
 
     def save_to_mongo(self):
-        # make the content to markdown
         self.content = markdown.markdown(self.content)
         db.postdb.insert_one(self.json())
 
@@ -310,9 +319,25 @@ def home():
 
 @appx.route('/favicon.ico')
 def favicon():
-    # the favicon file is in the same directory as app.py
     return send_from_directory(os.path.join(appx.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@appx.route("/api/messages")
+@login_required
+def get_messages():
+    user2 = request.args.get("with")
+    chat = Messages.get_chat(current_user.username, user2)
+    return jsonify([m.json() for m in chat])
+
+
+@appx.route("/api/send_message", methods=["POST"])
+@login_required
+def api_send_message():
+    data = request.get_json()
+    receiver = data["username"]
+    message = data["message"]
+    new_msg = Messages.send_message(current_user.username, receiver, message)
+    return jsonify(new_msg)
 
 
 @appx.route("/<username>")
@@ -542,21 +567,6 @@ def deletemsg():
     return redirect(red)
 
 
-@appx.route("/sendmessage", methods=['GET', 'POST'])
-@login_required
-def sendmessage():
-    x = request.args
-    username = x.get("username")
-    message = x.get("message")
-    Messages.send_message(current_user.username, username, message)
-    return redirect('/message/' + username)
-
-
-@appx.route('/mes/<username>')
-def mes(username):
-    chat = Messages.get_chat(current_user.username, username)
-    return render_template('mes.html', messages=chat)
-
 
 @appx.route("/message/<username>", methods=['GET', 'POST'])
 @login_required
@@ -568,6 +578,50 @@ def message(username):
             h = '/sendmessage' + '?username=' + username + '&message=' + message
             return redirect(h)
     return render_template('message-page.html', username=username, form=hmm)
+
+@appx.route("/follow/<username>", methods=["GET", "POST"])
+@login_required
+def toggle_follow(username):
+    if username == current_user.username:
+        flash("You cannot follow yourself!", "warning")
+        return redirect(url_for("user", username=username))
+
+    # Check if target user exists
+    target = db.userdb.find_one({"username": username})
+    if not target:
+        flash("User not found!", "danger")
+        return redirect("/404")
+
+    # Check if current user is already a follower (using DB directly)
+    is_following = db.userdb.find_one({
+        "username": username,
+        "followers": current_user.username
+    })
+
+    if is_following:
+        # Unfollow
+        db.userdb.update_one(
+            {"username": username},
+            {"$pull": {"followers": current_user.username}}
+        )
+        db.userdb.update_one(
+            {"username": current_user.username},
+            {"$pull": {"following": username}}
+        )
+        flash(f"You unfollowed {username}", "info")
+    else:
+        # Follow
+        db.userdb.update_one(
+            {"username": username},
+            {"$addToSet": {"followers": current_user.username}}
+        )
+        db.userdb.update_one(
+            {"username": current_user.username},
+            {"$addToSet": {"following": username}}
+        )
+        flash(f"You are now following {username}", "success")
+
+    return redirect(url_for("user", username=username))
 
 
 from waitress import serve
