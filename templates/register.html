@@ -9,13 +9,13 @@
             <div class="card shadow rounded-4">
                 <div class="card-body">
                     <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
-                        Sign In
-                        <small class="d-block mt-2 fs-6">or <a href="/register">Sign Up</a></small>
+                        Sign Up
+                        <small class="d-block mt-2 fs-6">or <a href="/login">Sign In</a></small>
                     </h2>
 
                     <form action="" method="post">
                         {% import "bootstrap/wtf.html" as wtf %}
-                        {{ wtf.quick_form(form, button_map={'submit': 'primary'}) }}
+                        {{ wtf.quick_form(form, button_map={'submit': 'success'}) }}
                     </form>
                 </div>
             </div>

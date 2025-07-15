@@ -236,8 +236,9 @@ class Post:
         self.username = username
         self.timestamp = timestamp
         self.likes = 0
-        self.r_ = []
+        self.liked_by = []
         self.dislikes = 0
+        self.disliked_by = []
         self._id = uuid.uuid4().hex if _id is None else _id
 
     def json(self):
@@ -249,8 +250,9 @@ class Post:
             "timestamp": self.timestamp,
             "username": self.username,
             "likes": self.likes,
-            "r_": self.r_,
-            "dislikes": self.dislikes
+            "dislikes": self.dislikes,
+            "liked_by": self.liked_by,
+            "disliked_by": self.disliked_by,
         }
 
     @classmethod
@@ -260,34 +262,52 @@ class Post:
             return cls(**data)
 
     @classmethod
-    def liked(cls,_id,userx):
+    def liked(cls, _id, userx):
         data = db.postdb.find_one({"_id": _id})
-        if userx in data["r_"]:
-            data['r_'].remove(userx)
-            p = data['r_']
-            db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']-1}})
-            db.postdb.update_one({"_id": _id}, {"$set": {"r_": p }})
+        if not data or userx == data['username']:
+            return
+        liked_by = set(data.get("liked_by", []))
+        disliked_by = set(data.get("disliked_by", []))
+        if userx in liked_by:
+            liked_by.remove(userx)
         else:
-            if userx != data['username']:
-                data['r_'].append(userx)
-                p = data['r_']
-                db.postdb.update_one({"_id": _id}, {"$set": {"likes": data['likes']+1}})
-                db.postdb.update_one({"_id": _id}, {"$set": {"r_": p }})
+            liked_by.add(userx)
+            disliked_by.discard(userx)  # can't both like and dislike
+        db.postdb.update_one(
+            {"_id": _id},
+            {
+                "$set": {
+                    "liked_by": list(liked_by),
+                    "disliked_by": list(disliked_by),
+                    "likes": len(liked_by),
+                    "dislikes": len(disliked_by)
+                }
+            }
+        )
 
     @classmethod
-    def disliked(cls,_id,userx):
+    def disliked(cls, _id, userx):
         data = db.postdb.find_one({"_id": _id})
-        if userx in data["r_"]:
-            data['r_'].remove(userx)
-            p = data['r_']
-            db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']-1}})
-            db.postdb.update_one({"_id": _id}, {"$set": {"r_": p}})
+        if not data or userx == data['username']:
+            return
+        liked_by = set(data.get("liked_by", []))
+        disliked_by = set(data.get("disliked_by", []))
+        if userx in disliked_by:
+            disliked_by.remove(userx)
         else:
-            if userx != data['username']:
-                data['r_'].append(userx)
-                p = data['r_']
-                db.postdb.update_one({"_id": _id}, {"$set": {"dislikes": data['dislikes']+1}})
-                db.postdb.update_one({"_id": _id}, {"$set": {"r_": p}})
+            disliked_by.add(userx)
+            liked_by.discard(userx)
+        db.postdb.update_one(
+            {"_id": _id},
+            {
+                "$set": {
+                    "liked_by": list(liked_by),
+                    "disliked_by": list(disliked_by),
+                    "likes": len(liked_by),
+                    "dislikes": len(disliked_by)
+                }
+            }
+        )
 
     @classmethod
     def get_by_user_id(cls, user_id):
@@ -384,7 +404,7 @@ def register():
                 return redirect(url_for('home'))
             else:
                 flash(f'Account already exists for {form.username.data}!', 'success')
-    return render_template('create.html', title='Register', form=form)
+    return render_template('register.html', title='Register', form=form)
 
 
 @appx.route("/login", methods=['GET', 'POST'])
@@ -473,21 +493,37 @@ def deletepost():
     db.postdb.delete_one({"_id": post_id, "username": current_user.username})
     return redirect('/me')
 
-@appx.route("/like", methods=['GET', 'POST'])
+
+@appx.route("/like", methods=['POST'])
 @login_required
 def like():
-    x = request.args
-    post_id = x.get("post_id")
-    Post.liked(_id=post_id,userx=current_user.username) #fix it later
-    return redirect(url_for('home')) # this also
+    post_id = request.args.get("post_id")
+    if not post_id:
+        return jsonify({"success": False, "message": "Missing post ID"}), 400
 
-@appx.route("/dislike", methods=['GET', 'POST'])
+    Post.liked(_id=post_id, userx=current_user.username)
+    post = db.postdb.find_one({"_id": post_id})
+    return jsonify({
+        "success": True,
+        "likes": post.get("likes", 0),
+        "dislikes": post.get("dislikes", 0)
+    })
+
+
+@appx.route("/dislike", methods=['POST'])
 @login_required
 def dislike():
-    x = request.args
-    post_id = x.get("post_id")
-    Post.disliked(_id=post_id,userx=current_user.username) #fix it later
-    return redirect(url_for('home')) # this also
+    post_id = request.args.get("post_id")
+    if not post_id:
+        return jsonify({"success": False, "message": "Missing post ID"}), 400
+
+    Post.disliked(_id=post_id, userx=current_user.username)
+    post = db.postdb.find_one({"_id": post_id})
+    return jsonify({
+        "success": True,
+        "likes": post.get("likes", 0),
+        "dislikes": post.get("dislikes", 0)
+    })
 
 @appx.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
@@ -579,20 +615,17 @@ def message(username):
             return redirect(h)
     return render_template('message-page.html', username=username, form=hmm)
 
-@appx.route("/follow/<username>", methods=["GET", "POST"])
+
+@appx.route("/follow/<username>", methods=["POST"])
 @login_required
 def toggle_follow(username):
     if username == current_user.username:
-        flash("You cannot follow yourself!", "warning")
-        return redirect(url_for("user", username=username))
+        return jsonify({"success": False, "message": "You cannot follow yourself!"}), 400
 
-    # Check if target user exists
     target = db.userdb.find_one({"username": username})
     if not target:
-        flash("User not found!", "danger")
-        return redirect("/404")
+        return jsonify({"success": False, "message": "User not found!"}), 404
 
-    # Check if current user is already a follower (using DB directly)
     is_following = db.userdb.find_one({
         "username": username,
         "followers": current_user.username
@@ -608,7 +641,7 @@ def toggle_follow(username):
             {"username": current_user.username},
             {"$pull": {"following": username}}
         )
-        flash(f"You unfollowed {username}", "info")
+        action = "unfollowed"
     else:
         # Follow
         db.userdb.update_one(
@@ -619,9 +652,19 @@ def toggle_follow(username):
             {"username": current_user.username},
             {"$addToSet": {"following": username}}
         )
-        flash(f"You are now following {username}", "success")
+        action = "followed"
 
-    return redirect(url_for("user", username=username))
+    # Get updated count
+    updated_user = db.userdb.find_one({"username": username})
+    follower_count = len(updated_user.get("followers", []))
+
+    return jsonify({
+        "success": True,
+        "action": action,
+        "is_following": not is_following,
+        "follower_count": follower_count
+    })
+
 
 
 from waitress import serve

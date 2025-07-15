@@ -12,22 +12,21 @@
                             <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo">
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <p class="mb-4">{{ aboutme }}</p>
-                            <p class="mb-1"><strong>Followers:</strong> {{ user.get_followers_number() }}</p>
+                            <p class="mb-4">{{ user.aboutme }}</p>
+                            <p class="mb-1"><strong>Followers:</strong> <span id="followerCount">{{ user.get_followers_number() }}</span></p>
                             <p class="mb-4"><strong>Following:</strong> {{ user.get_following_number() }}</p>
-
-                            {% if current_user.username != user.username %}
-                                <div class="d-flex justify-content-start mt-3">
-                                    {% if current_user.username in user.followers %}
-                                        <a href="{{ url_for('toggle_follow', username=user.username) }}" class="btn btn-danger">Unfollow</a>
-                                    {% else %}
-                                        <a href="{{ url_for('toggle_follow', username=user.username) }}" class="btn btn-primary">Follow</a>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
+                                {% if current_user.username != user.username %}
+                                    <div class="d-flex justify-content-start mt-3">
+                                        <button id="followBtn"
+                                                class="btn {{ 'btn-danger' if current_user.username in user.followers else 'btn-primary' }}"
+                                                data-following="{{ 'true' if current_user.username in user.followers else 'false' }}"
+                                                data-username="{{ user.username }}">
+                                            {{ 'Unfollow' if current_user.username in user.followers else 'Follow' }}
+                                        </button>
+                                    </div>
+                                {% endif %}
                         </div>
                     </div>
-
                     {% if user.username == current_user.username %}
                         <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'" style="cursor: pointer;">manage_accounts</span>
                     {% else %}
@@ -42,4 +41,38 @@
 {% for post in posts %}
     {% include '_post.html' %}
 {% endfor %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const followBtn = document.getElementById("followBtn");
+    if (!followBtn) return;
+
+    followBtn.addEventListener("click", function () {
+        const username = followBtn.getAttribute("data-username");
+
+        fetch(`/follow/${username}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                followBtn.textContent = data.is_following ? "Unfollow" : "Follow";
+                followBtn.classList.toggle("btn-danger", data.is_following);
+                followBtn.classList.toggle("btn-primary", !data.is_following);
+                document.getElementById("followerCount").textContent = data.follower_count;
+            } else {
+                alert(data.message || "Action failed");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Something went wrong.");
+        });
+    });
+});
+</script>
+
 {% endblock %}

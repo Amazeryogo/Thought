@@ -1,11 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1 style="text-align: center;font-family: font-family: 'Roboto Slab', serif;"> Make a new post!!</h1>
-        <div class="col">
-            <form action="" method="post" class="form-control">
-                {% import "bootstrap/wtf.html" as wtf %}
-                    {{ wtf.quick_form(form) }}
-            </form>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow rounded-4">
+                <div class="card-body">
+                    <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
+                        Make a New Post!
+                    </h2>
+
+                    <form action="" method="post">
+                        {% import "bootstrap/wtf.html" as wtf %}
+                        {{ wtf.form_field(form.title) }}
+                        {{ wtf.form_field(form.content) }}
+                        <button type="submit" class="btn btn-primary mt-3 d-flex align-items-center gap-1">
+                            <span class="material-symbols-outlined">arrow_upload_ready</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
+    </div>
+</div>
 {% endblock %}
+

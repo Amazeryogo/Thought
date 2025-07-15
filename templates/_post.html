@@ -9,11 +9,61 @@
           {% if user == current_user %}
             <a href="/deletepost?post_id={{post._id}}"><span class="material-symbols-outlined">cancel</span></a> <br/>
           {% else %}
-          <a href="/like?post_id={{post._id}}"><span class="material-symbols-outlined">thumb_up</span> {{post.likes}}</a>
-          <a href="/dislike?post_id={{post._id}}"><span class="material-symbols-outlined">thumb_down</span> {{post.dislikes}}</a>
+          <span class="like-btn material-symbols-outlined" data-id="{{ post._id }}">thumb_up</span><span id="like-count-{{ post._id }}">{{ post.likes }}</span>
+          <span class="dislike-btn material-symbols-outlined" data-id="{{ post._id }}">thumb_down</span><span id="dislike-count-{{ post._id }}">{{ post.dislikes }}</span>
           {% endif %}
           <p class="card-subtitle mb-2 " style="color: grey">{{post.timestamp}}</a></p>
 
       </div>
       </div>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".like-btn").forEach(button => {
+        button.addEventListener("click", () => {
+            const postId = button.getAttribute("data-id");
+
+            fetch(`/like?post_id=${postId}`, {
+                method: "POST"
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update like/dislike counts
+                    document.getElementById(`like-count-${postId}`).textContent = data.likes;
+                    document.getElementById(`dislike-count-${postId}`).textContent = data.dislikes;
+                } else {
+                    alert(data.message || "Failed to like post");
+                }
+            })
+            .catch(err => {
+                console.error("Error:", err);
+                alert("An error occurred while liking the post.");
+            });
+        });
+    });
+    document.querySelectorAll(".dislike-btn").forEach(button => {
+        button.addEventListener("click", () => {
+            const postId = button.getAttribute("data-id");
+
+            fetch(`/dislike?post_id=${postId}`, {
+                method: "POST"
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update like/dislike counts
+                    document.getElementById(`like-count-${postId}`).textContent = data.likes;
+                    document.getElementById(`dislike-count-${postId}`).textContent = data.dislikes;
+                } else {
+                    alert(data.message || "Failed to dislike post");
+                }
+            })
+            .catch(err => {
+                console.error("Error:", err);
+                alert("An error occurred while disliking the post.");
+            });
+        });
+    });
+});
+</script>
