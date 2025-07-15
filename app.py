@@ -626,5 +626,5 @@ def toggle_follow(username):
 
 from waitress import serve
 print("Starting Thought at")
-print("http://0.0.0.0:8080")
+print("http://0.0.0.0:8080 on "+str(bruh.now().time()))
 serve(appx, host='0.0.0.0', port=os.environ['PORT'])
