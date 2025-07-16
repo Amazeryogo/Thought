@@ -439,7 +439,7 @@ def avatar(username):
         if os.path.isfile(path):
             return send_from_directory(static_dir, f"pfp.{ext}")
     # Default fallback
-    return send_from_directory("static",f"noavatar.jpg")
+    return send_from_directory("static",f"noavatar.jpeg")
 
 
 
