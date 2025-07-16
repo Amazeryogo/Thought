@@ -6,7 +6,7 @@ flask_login
 flask_pymongo
 flask_bootstrap
 dnspython
-waitress
+gunicorn
 markdown
 flask-socketio
 pyjwt

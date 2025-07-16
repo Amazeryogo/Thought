@@ -61,10 +61,10 @@ def upload_image():
     return render_template("upload_image.html")
 
 
-@appx.route("/image/<imageuid>", methods=["GET", "POST"])
+@appx.route("/image/<userid>/<imageuid>", methods=["GET", "POST"])
 @login_required
-def render_image(imageuid):
-    return send_from_directory(IMAGED + "/" + current_user._id, imageuid)
+def render_image(userid,imageuid):
+    return send_from_directory(IMAGED + "/" + userid, imageuid)
 
 
 @appx.route("/<username>")
@@ -76,23 +76,17 @@ def user(username):
         user = User.get_by_username(username)
         if user is None:
             return redirect('/404')
-
     avatar = User.avatar(user.username)
     aboutme = User.get_aboutme(user.username)
-
-    # Get posts
     posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
     p2 = []
     for post in posts:
         post['content'] = markdown.markdown(post['content'])
         p2.append(post)
-
-    # Gallery: fetch all images from user-specific folder
     image_dir = os.path.join(IMAGED, user._id)
     user_images = []
     if os.path.exists(image_dir):
         user_images = [f for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
-
     return render_template(
         'user.html',
         user=user,

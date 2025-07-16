@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
         {% for img in user_images %}
         <div class="col-6 col-md-4 col-lg-3">
             <div class="card border-0 shadow-sm">
-                <img src="{{ url_for('render_image', imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
+                <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
             </div>
         </div>
         {% endfor %}

@@ -4,9 +4,10 @@ from flask import *
 from flask_login import *
 from flask_pymongo import *
 
+with open("secretkey.txt","r") as f:
+    SECRET_KEY = f.read()
 
 appx = Flask(__name__)
-SECRET_KEY = os.urandom(32)
 appx.config['SECRET_KEY'] = SECRET_KEY
 appx.config["MONGO_URI"] = os.environ.get("MONGO_URI")
 mongo = PyMongo(appx)
