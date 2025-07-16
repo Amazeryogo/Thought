@@ -9,9 +9,19 @@
                     <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
                         Settings
                     </h2>
-                    <form action="" method="post">
+
+                    <form method="POST" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
                         {% import "bootstrap/wtf.html" as wtf %}
-                        {{ wtf.quick_form(form, button_map={'submit': 'primary'}) }}
+                        {{ wtf.form_field(form.email) }}
+                        {{ wtf.form_field(form.content) }}
+
+                        <div class="mb-3">
+                            <label for="pfp" class="form-label">Profile Picture</label>
+                            <input type="file" class="form-control" name="pfp" id="pfp" accept="image/*">
+                        </div>
+
+                        {{ wtf.form_field(form.submit, class_="btn btn-primary w-100") }}
                     </form>
 
                     <hr class="my-4">
@@ -21,7 +31,6 @@
                             Logout
                         </button>
                     </form>
-
                 </div>
             </div>
         </div>

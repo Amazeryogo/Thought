@@ -48,11 +48,14 @@ def post_view(post_id):
     top_comments = []
     for comment in all_comments:
         if comment.parent_comment_id:
-            # Add reply to its parent's `replies` list
             parent = comments_by_id.get(comment.parent_comment_id)
-            if not hasattr(parent, "replies"):
-                parent.replies = []
-            parent.replies.append(comment)
+            if parent:
+                if not hasattr(parent, "replies"):
+                    parent.replies = []
+                parent.replies.append(comment)
+            else:
+                # If the parent doesn't exist (e.g., deleted), treat it as top-level
+                top_comments.append(comment)
         else:
             top_comments.append(comment)
 
@@ -300,21 +303,50 @@ def setaboutme():
 @login_required
 def settings():
     form = AboutMeForm()
-    form.content.data = User.get_aboutme(current_user.username)
-    form.email.data = current_user.email
-    form.content.data = User.get_aboutme(current_user.username)
+
+    if request.method == "GET":
+        form.content.data = User.get_aboutme(current_user.username)
+        form.email.data = current_user.email
+
     if form.validate_on_submit():
-        if request.method == 'POST':
-            aboutme = request.form["content"]
-            email = request.form["email"]
-            if len(aboutme) <= ABOUT_ME_MAX:
-                User.addaboutme(current_user.username, aboutme)
-                x = User.change_email(current_user.username, email)
-                flash(f'Your changes have been saved', 'success')
-                return redirect('/me')
+        aboutme = form.content.data.strip()
+        email = form.email.data.strip()
+
+        if len(aboutme) <= ABOUT_ME_MAX:
+            User.addaboutme(current_user.username, aboutme)
+            User.change_email(current_user.username, email)
+
+            file = request.files.get("pfp")
+            if file:
+                if file.filename == "":
+                    flash("Empty file name", "warning")
+                elif not allowed_file(file.filename):
+                    flash("Invalid file type", "danger")
+                else:
+                    ext = file.filename.rsplit('.', 1)[1].lower()
+                    user_dir = os.path.join(STATIC_FOLDER, current_user.username)
+                    os.makedirs(user_dir, exist_ok=True)
+
+                    # Remove old avatars
+                    for old_ext in ['jpg', 'jpeg', 'png', 'gif']:
+                        old_path = os.path.join(user_dir, f"pfp.{old_ext}")
+                        if os.path.exists(old_path):
+                            os.remove(old_path)
+
+                    save_path = os.path.join(user_dir, f"pfp.{ext}")
+                    file.save(save_path)
+                    flash("Profile picture updated.", "success")
             else:
-                flash('your about me is too long','warning')
+                flash("No profile picture uploaded", "info")
+
+            flash('Your changes have been saved', 'success')
+            return redirect('/me')
+        else:
+            flash('Your "About Me" is too long.', 'warning')
+
     return render_template('settings.html', title='Set About Me', form=form)
+
+
 
 
 @appx.errorhandler(404)
@@ -330,6 +362,7 @@ def x404():
 @appx.route('/logout', methods=['GET', 'POST'])
 def logout():
     logout_user()
+    flash('bye bye!','success')
     return redirect('/')
 
 
@@ -368,27 +401,47 @@ def deletemsg():
     red = "/mes/" + red
     return redirect(red)
 
+@appx.route("/message/<username>")
+@login_required
+def message_page(username):
+    return render_template("message-page.html", username=username)
+
 @appx.route("/messages6")
 @login_required
 def get_messages():
     user2 = request.args.get("with")
+    if not user2:
+        return jsonify([])
     chat = Messages.get_chat(current_user.username, user2)
     return jsonify([m.json() for m in chat])
 
-
-@appx.route("/message/<username>", methods=['GET', 'POST'])
+@appx.route("/api/send_message", methods=["POST"])
 @login_required
-def message(username):
-    hmm = MessageForm()
-    if hmm.validate_on_submit():
-        if request.method == 'POST':
-            message = request.form["message"]
-            if len(message) <= MESSAGE_MAX:
-                h = '/sendmessage' + '?username=' + username + '&message=' + message
-                return redirect(h)
-            else:
-                flash('message too long','warning')
-    return render_template('message-page.html', username=username, form=hmm)
+def send_message_api():
+    data = request.get_json()
+    recipient = data.get("username")
+    content = data.get("message")
+
+    if not recipient or not content:
+        return jsonify({"success": False, "error": "Missing data"}), 400
+
+    if len(content) > MESSAGE_MAX:
+        return jsonify({"success": False, "error": "Message too long"}), 400
+
+    Messages.send_message(current_user.username, recipient, content)
+    return jsonify({"success": True})
+
+@appx.route('/avatar/<username>')
+def avatar(username):
+    static_dir = os.path.join(STATIC_FOLDER, username)
+    for ext in ['jpg', 'jpeg', 'png', 'gif']:
+        path = os.path.join(static_dir, f"pfp.{ext}")
+        if os.path.isfile(path):
+            return send_from_directory(static_dir, f"pfp.{ext}")
+    # Default fallback
+    return send_from_directory("static",f"noavatar.jpg")
+
+
 
 
 @appx.route("/follow/<username>", methods=["POST"])
@@ -438,4 +491,64 @@ def toggle_follow(username):
         "follower_count": follower_count
     })
 
+@appx.route("/followers/<username>")
+@login_required
+def get_followers(username):
+    user = db.userdb.find_one({"username": username})
+    if not user:
+        return jsonify({"success": False, "message": "User not found!"}), 404
+    return jsonify({
+        "success": True,
+        "type": "followers",
+        "users": user.get("followers", [])
+    })
+
+@appx.route("/following/<username>")
+@login_required
+def get_following(username):
+    user = db.userdb.find_one({"username": username})
+    if not user:
+        return jsonify({"success": False, "message": "User not found!"}), 404
+    return jsonify({
+        "success": True,
+        "type": "following",
+        "users": user.get("following", [])
+    })
+
+@appx.route("/edit/post/<post_id>", methods=['GET', 'POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.get_by_id(post_id)
+
+    if not post:
+        flash("Post not found.", "danger")
+        return redirect("/")
+
+    if post.user_id != current_user._id:
+        flash("You are not authorized to edit this post.", "danger")
+        return redirect("/")
+
+    form = PostForm()
+
+    if request.method == 'GET':
+        form.title.data = post.title
+        form.content.data = post.content
+
+    if form.validate_on_submit():
+        if len(form.content.data) <= POST_MAX:
+            db.postdb.update_one(
+                {"_id": post_id},
+                {
+                    "$set": {
+                        "title": form.title.data,
+                        "content": form.content.data
+                    }
+                }
+            )
+            flash("Post updated successfully!", "success")
+            return redirect(url_for('post_view', post_id=post_id))
+        else:
+            flash("Post content too long", "warning")
+
+    return render_template("edit_post.html", form=form)
 

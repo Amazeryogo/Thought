@@ -111,13 +111,14 @@ class User(UserMixin):
         }
 
     @classmethod
-    def avatar(self, username):
-        x = db.userdb.find_one({"username": username})
-        if x is not None:
-            email = x["email"]
-            digest = md5(email.lower().encode('utf-8')).hexdigest()
-            return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
-                digest, 128)
+    def avatar(cls, username):
+        return f'/avatar/{username}'
+        '''
+        user = db.userdb.find_one({"username": username})
+        email = user.get("email", "").strip().lower() if user else ""
+        email_hash = md5(email.encode()).hexdigest()
+        return f"https://www.gravatar.com/avatar/{email_hash}?d=identicon"
+        '''
 
     def get_followers_number(self):
         return len(self.get_followers())
@@ -149,6 +150,7 @@ class Messages:
         self.timestamp = timestamp
         self.message = message
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.s_av = User.avatar(sender)
 
     def json(self):
         return {
@@ -304,7 +306,6 @@ class Comment:
         self.user_id = user_id
         self.username = username
         self.content = content
-        # If this is a reply, parent_comment_id will be the _id of the comment it's replying to
         self.parent_comment_id = parent_comment_id
 
         self._id = uuid.uuid4().hex if _id is None else _id
@@ -313,7 +314,6 @@ class Comment:
         self.liked_by = [] if liked_by is None else liked_by
 
     def json(self):
-        """Returns a JSON-serializable dictionary representation of the comment."""
         return {
             "_id": self._id,
             "post_id": self.post_id,
@@ -327,13 +327,10 @@ class Comment:
         }
 
     def save_to_mongo(self):
-        """Saves the comment instance to the database."""
-        # You might want to use a separate collection for comments
         db.commentdb.insert_one(self.json())
 
     @classmethod
     def create(cls, post_id, user_id, username, content, parent_comment_id=None):
-        """A helper method to create and save a new comment."""
         new_comment = cls(
             post_id=post_id,
             user_id=user_id,
@@ -346,7 +343,6 @@ class Comment:
 
     @classmethod
     def get_by_id(cls, _id):
-        """Fetches a single comment by its unique ID."""
         data = db.commentdb.find_one({"_id": _id})
         if data:
             return cls(**data)
@@ -354,23 +350,21 @@ class Comment:
 
     @classmethod
     def find_by_post_id(cls, post_id):
-        """Fetches all comments for a specific post, sorted by time."""
         comments_data = db.commentdb.find({"post_id": post_id}).sort("timestamp", 1)
         return [cls(**data) for data in comments_data]
 
     @classmethod
     def like(cls, _id, username):
-        """Toggles a like on a comment for a given user."""
         comment = db.commentdb.find_one({"_id": _id})
         if not comment or username == comment.get('username'):
-            return  # Can't like your own comment
+            return
 
         liked_by = set(comment.get("liked_by", []))
 
         if username in liked_by:
-            liked_by.remove(username)  # Unlike
+            liked_by.remove(username)
         else:
-            liked_by.add(username)  # Like
+            liked_by.add(username)
 
         db.commentdb.update_one(
             {"_id": _id},

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow rounded-4">
+                <div class="card-body">
+                    <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
+                        Edit Your Post
+                    </h2>
+
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        {% import "bootstrap/wtf.html" as wtf %}
+                        {{ wtf.form_field(form.title) }}
+                        {{ wtf.form_field(form.content) }}
+                        <button type="submit" class="btn btn-success mt-3 d-flex align-items-center gap-1">
+                            <span class="material-symbols-outlined">edit</span>
+                            Save Changes
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

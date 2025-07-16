@@ -1,84 +1,88 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1 style="text-align: center; font-family: 'Abril Fatface', cursive;">{{ user.username }}</h1>
+<h1 class="text-center" style="font-family: 'Abril Fatface', cursive;">{{ user.username }}</h1>
+
 <div class="container py-5">
-    <div class="row justify-content-center align-items-center">
-        <div class="col-md-9 col-lg-7 col-xl-5">
-            <div class="card rounded-3">
-                <div class="card-body p-4">
-                    <div class="d-flex align-items-start">
-                        <div class="flex-shrink-0">
-                            <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid profile-photo">
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <p class="mb-4">{{ user.aboutme }}</p>
-                            <p class="mb-1"><strong>Followers:</strong> <span id="followerCount">{{ user.get_followers_number() }}</span></p>
-                            <p class="mb-4"><strong>Following:</strong> {{ user.get_following_number() }}</p>
-                                {% if current_user.username != user.username %}
-                                    <div class="d-flex justify-content-start mt-3">
-                                        <button id="followBtn"
-                                                class="btn {{ 'btn-danger' if current_user.username in user.followers else 'btn-primary' }}"
-                                                data-following="{{ 'true' if current_user.username in user.followers else 'false' }}"
-                                                data-username="{{ user.username }}">
-                                            {{ 'Unfollow' if current_user.username in user.followers else 'Follow' }}
-                                        </button>
-                                    </div>
-                                {% endif %}
-                        </div>
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8 col-xl-6">
+            <div class="card rounded-4 shadow-sm">
+                <div class="card-body p-4 d-flex">
+                    <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid rounded-circle me-4" style="width: 100px; height: 100px; object-fit: cover;">
+                    <div class="flex-grow-1">
+                        <p class="mb-3">{{ user.aboutme }}</p>
+                        <p class="mb-1">
+                            <strong>Followers:</strong>
+                            <span id="followerCount"
+                                  data-username="{{ user.username }}"
+                                  data-type="followers"
+                                  class="hover-follow text-primary"
+                                  style="cursor: pointer;">
+                                {{ user.get_followers_number() }}
+                            </span>
+                        </p>
+                        <p class="mb-3">
+                            <strong>Following:</strong>
+                            <span data-username="{{ user.username }}"
+                                  data-type="following"
+                                  class="hover-follow text-primary"
+                                  style="cursor: pointer;">
+                                {{ user.get_following_number() }}
+                            </span>
+                        </p>
                     </div>
-                    {% if user.username == current_user.username %}
-                        <span class="material-symbols-outlined" onclick="location.href='/set/aboutme'" style="cursor: pointer;">manage_accounts</span>
+                </div>
+                <div class="card-footer d-flex justify-content-end gap-3 bg-white">
+
+                    {% if user.username != current_user.username %}
+                        <span class="material-symbols-outlined"
+                              style="cursor: pointer;"
+                              onclick="location.href='/message/{{ user.username }}'">
+                              forum
+                        </span>
+                        <span id="followToggle"
+                              class="material-symbols-outlined"
+                              style="cursor: pointer;"
+                              data-username="{{ user.username }}"
+                              data-following="{{ 'true' if current_user.username in user.followers else 'false' }}">
+                            {{ 'remove' if current_user.username in user.followers else 'add' }}
+                        </span>
                     {% else %}
-                        <span class="material-symbols-outlined" onclick="location.href='/message/{{ user.username }}'" style="cursor: pointer;">forum</span>
+                        <span class="material-symbols-outlined"
+                              style="cursor: pointer;"
+                              onclick="location.href='/set/aboutme'">
+                              manage_accounts
+                        </span>
                     {% endif %}
+
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<hr class="my-5">
+
 {% for post in posts %}
     {% include '_post.html' %}
 {% endfor %}
 
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const followBtn = document.getElementById("followBtn");
-    if (!followBtn) return;
+<div class="modal fade" id="followModal" tabindex="-1" aria-labelledby="followModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content rounded-4">
+      <div class="modal-header">
+        <h5 class="modal-title" id="followModalLabel">Follow List</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="followList">
+        <p class="text-muted">Loading...</p>
+      </div>
+    </div>
+  </div>
+</div>
 
-    followBtn.addEventListener("click", function () {
-        const username = followBtn.getAttribute("data-username");
-
-        fetch(`/follow/${username}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                followBtn.textContent = data.is_following ? "Unfollow" : "Follow";
-                followBtn.classList.toggle("btn-danger", data.is_following);
-                followBtn.classList.toggle("btn-primary", !data.is_following);
-                document.getElementById("followerCount").textContent = data.follower_count;
-            } else {
-                alert(data.message || "Action failed");
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert("Something went wrong.");
-        });
-    });
-});
-</script>
-<hr class="my-5">
-
-<div class="container">
+<div class="container mt-5">
     <h3 class="text-center mb-4" style="font-family: 'Roboto Slab', serif;">📸 Gallery</h3>
-
     {% if user_images %}
     <div class="row g-3">
         {% for img in user_images %}
@@ -94,4 +98,75 @@ document.addEventListener("DOMContentLoaded", function () {
     {% endif %}
 </div>
 
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // Toggle follow icon
+    const followIcon = document.getElementById("followToggle");
+    if (followIcon) {
+        followIcon.addEventListener("click", function () {
+            const username = followIcon.dataset.username;
+
+            fetch(`/follow/${username}`, { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    followIcon.textContent = data.is_following ? "remove" : "add";
+                    followIcon.dataset.following = data.is_following;
+                    document.getElementById("followerCount").textContent = data.follower_count;
+                } else {
+                    alert(data.message || "Action failed");
+                }
+            })
+            .catch(() => alert("Something went wrong."));
+        });
+    }
+
+    // Hover popup for follower/following count
+    const hoverElements = document.querySelectorAll(".hover-follow");
+    hoverElements.forEach(elem => {
+        let timer;
+        elem.addEventListener("mouseenter", () => {
+            const username = elem.dataset.username;
+            const type = elem.dataset.type;
+            timer = setTimeout(() => {
+                openFollowModal(username, type);
+            }, 300); // Delay to avoid accidental hover
+        });
+        elem.addEventListener("mouseleave", () => {
+            clearTimeout(timer);
+        });
+    });
+});
+
+function openFollowModal(username, type) {
+    const url = type === 'followers'
+        ? `/followers/${username}`
+        : `/following/${username}`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const list = data.users;
+                let html = '';
+                if (list.length === 0) {
+                    html = `<p class="text-muted">No ${type} yet.</p>`;
+                } else {
+                    html = '<ul class="list-group">';
+                    list.forEach(u => {
+                        html += `<li class="list-group-item"><a href="/${u}">${u}</a></li>`;
+                    });
+                    html += '</ul>';
+                }
+                document.getElementById('followModalLabel').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                document.getElementById('followList').innerHTML = html;
+                const modal = new bootstrap.Modal(document.getElementById('followModal'));
+                modal.show();
+            } else {
+                alert("Could not load data.");
+            }
+        })
+        .catch(() => alert("Server error"));
+}
+</script>
 {% endblock %}
