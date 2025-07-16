@@ -19,6 +19,86 @@ def home():
     return render_template('home.html', posts=p2)
 
 
+@appx.route("/post/<post_id>", methods=["GET", "POST"])
+@login_required
+def post_view(post_id):
+    post = Post.get_by_id(post_id)
+    if not post:
+        abort(404)
+
+    form = CommentForm()
+
+    if form.validate_on_submit():
+        if len(form.content.data) <= COMMENT_MAX:
+            Comment.create(
+                post_id=post_id,
+                user_id=current_user._id,
+                username=current_user.username,
+                content=form.content.data
+            )
+            flash("Comment added.", "success")
+            return redirect(url_for('post_view', post_id=post_id))
+        else:
+            flash('comment reply too large','warning')
+    # Fetch comments for this post
+    all_comments = Comment.find_by_post_id(post_id)
+
+    # Separate top-level comments and replies
+    comments_by_id = {c._id: c for c in all_comments}
+    top_comments = []
+    for comment in all_comments:
+        if comment.parent_comment_id:
+            # Add reply to its parent's `replies` list
+            parent = comments_by_id.get(comment.parent_comment_id)
+            if not hasattr(parent, "replies"):
+                parent.replies = []
+            parent.replies.append(comment)
+        else:
+            top_comments.append(comment)
+
+    return render_template(
+        "post_view.html",
+        post=post,
+        form=form,
+        comments=top_comments,
+        User=User
+    )
+
+@appx.route("/comment/reply/<comment_id>", methods=["POST"])
+@login_required
+def reply_to_comment(comment_id):
+    parent_comment = Comment.get_by_id(comment_id)
+    if not parent_comment:
+        flash("Comment not found.", "danger")
+        return redirect(request.referrer)
+
+    content = request.form.get("reply_content")
+    if content:
+        if len(content) <= COMMENT_MAX:
+            Comment.create(
+            post_id=parent_comment.post_id,
+            user_id=current_user._id,
+            username=current_user.username,
+            content=content,
+            parent_comment_id=comment_id
+        )
+            flash("Reply posted!", "success")
+        else:
+            flash("comment too large", 'warning')
+    return redirect(request.referrer)
+
+@appx.route("/comment/delete/<comment_id>", methods=["POST"])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.get_by_id(comment_id)
+    if comment and (comment.user_id == current_user._id or current_user.is_admin):
+        db.commentdb.delete_one({"_id": comment_id})
+        flash("Comment deleted.", "success")
+    else:
+        flash("Unauthorized or comment not found.", "danger")
+    return redirect(request.referrer)
+
+
 @appx.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(appx.root_path, 'static'),
@@ -107,9 +187,15 @@ def register():
             password = generate_password_hash(request.form["password"])  # .decode('utf-8')
             find_user = User.get_by_email(email)
             if find_user is None:
-                User.register(username, email, password, invcode)
-                flash(f'Account created for {form.username.data}!', 'success')
-                return redirect(url_for('home'))
+                if len(username) in range(USERNAME_MIN,USERNAME_MAX+1):
+                    if len(request.form["password"]) <= PASSWORD_MAX:
+                        User.register(username, email, password, invcode)
+                        flash(f'Account created for {form.username.data}!', 'success')
+                        return redirect(url_for('home'))
+                    else:
+                        flash('password too long','warning')
+                else:
+                    flash('username does not meet requirements')
             else:
                 flash(f'Account already exists for {form.username.data}!', 'success')
     return render_template('register.html', title='Register', form=form)
@@ -139,19 +225,29 @@ def login():
 
 @appx.route("/upload/post", methods=['GET', 'POST'])
 @login_required
-def createnewpost2():
+def createnewpost():
     form = PostForm()
+
     if form.validate_on_submit():
-        if request.method == 'POST':
-            title = request.form["title"]
-            content = request.form["content"]
-            user_id = current_user._id
-            new_post = Post(current_user.username, title, content, bruh.now().strftime('%H:%M:%S %Y-%m-%d ')
-                            , user_id)
+        title = form.title.data
+        content = form.content.data
+        user_id = current_user._id
+        timestamp = bruh.now().strftime('%H:%M:%S %Y-%m-%d')
+        if len(content) <= POST_MAX:
+            new_post = Post(
+                username=current_user.username,
+                title=title,
+                content=content,
+                timestamp=timestamp,
+                user_id=user_id
+            )
             new_post.save_to_mongo()
-            flash(f'Your post has been created!', 'success')
+            flash('Your post has been created!', 'success')
             return redirect('/me')
+        else:
+            flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
     return render_template('create_post.html', title='New Post', form=form)
+
 
 
 @appx.route("/deletepost", methods=['GET', 'POST'])
@@ -211,12 +307,13 @@ def settings():
         if request.method == 'POST':
             aboutme = request.form["content"]
             email = request.form["email"]
-            User.addaboutme(current_user.username, aboutme)
-            x = User.change_email(current_user.username, email)
-            if x == False:
-                flash(f'Email already exists!', 'danger')
-            flash(f'Your changes have been saved', 'success')
-            return redirect('/me')
+            if len(aboutme) <= ABOUT_ME_MAX:
+                User.addaboutme(current_user.username, aboutme)
+                x = User.change_email(current_user.username, email)
+                flash(f'Your changes have been saved', 'success')
+                return redirect('/me')
+            else:
+                flash('your about me is too long','warning')
     return render_template('settings.html', title='Set About Me', form=form)
 
 
@@ -286,8 +383,11 @@ def message(username):
     if hmm.validate_on_submit():
         if request.method == 'POST':
             message = request.form["message"]
-            h = '/sendmessage' + '?username=' + username + '&message=' + message
-            return redirect(h)
+            if len(message) <= MESSAGE_MAX:
+                h = '/sendmessage' + '?username=' + username + '&message=' + message
+                return redirect(h)
+            else:
+                flash('message too long','warning')
     return render_template('message-page.html', username=username, form=hmm)
 
 
@@ -307,7 +407,6 @@ def toggle_follow(username):
     })
 
     if is_following:
-        # Unfollow
         db.userdb.update_one(
             {"username": username},
             {"$pull": {"followers": current_user.username}}
@@ -318,7 +417,6 @@ def toggle_follow(username):
         )
         action = "unfollowed"
     else:
-        # Follow
         db.userdb.update_one(
             {"username": username},
             {"$addToSet": {"followers": current_user.username}}

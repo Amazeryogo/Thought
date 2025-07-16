@@ -18,3 +18,10 @@ db = mongo.db
 flask_bootstrap.Bootstrap(appx)
 appx.config['FAVICON'] = 'favicon.ico'
 IMAGED = os.environ.get("IMAGES_PATH")
+COMMENT_MAX =2000
+POST_MAX = 5000
+ABOUT_ME_MAX = 50
+PASSWORD_MAX = 12
+MESSAGE_MAX = 100
+USERNAME_MAX = 12
+USERNAME_MIN = 2

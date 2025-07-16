@@ -40,6 +40,10 @@ class ResetPasswordForm(FlaskForm):
         'Repeat Password', validators=[DataRequired()])
     submit = SubmitField('Please Reset my password')
 
+class CommentForm(FlaskForm):
+    content = TextAreaField('Your Comment', validators=[DataRequired()], render_kw={"class": "form-control", "rows": 3})
+    submit = SubmitField('Post Comment', render_kw={"class": "btn btn-primary mt-2"})
+
 
 class MessageForm(FlaskForm):
     message = TextAreaField('Message', validators=[DataRequired()])

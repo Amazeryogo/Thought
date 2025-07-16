@@ -3,7 +3,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville&display=swap" rel="stylesheet">
 <div class="card border-active mx-auto mb-3" style="max-width: 75%">
       <div class="card-body">
-              <h2 class="card-title" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
+              <a href="{{ url_for('post_view', post_id=post._id) }}">
+                  <h2 class="card-title" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
+              </a>
           <p class="card-subtitle mb-2 ">by <a href="/{{post.username}}">{{ post.username }}</a></p>
             <div class="card-text">{{ post.content | safe }}</div>
           {% if user == current_user %}

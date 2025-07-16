@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <!-- Display the post -->
+    {% include '_post.html' %}
+
+    <hr>
+
+    <!-- New Comment Form -->
+    <div class="card my-4">
+        <h5 class="card-header">Leave a Comment:</h5>
+        <div class="card-body">
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.content(class="form-control", rows="3", placeholder="Write your comment...") }}
+                </div>
+                {{ form.submit(class="btn btn-primary mt-2") }}
+            </form>
+        </div>
+    </div>
+
+    <!-- Comments Section -->
+    {% if comments %}
+    <div class="card my-4">
+        <h5 class="card-header">
+            Comments ({{ comments|length }})
+        </h5>
+        <div class="card-body">
+
+            {% for comment in comments %}
+            <div class="media mb-4">
+                <img class="d-flex mr-3 rounded-circle" src="{{ User.avatar(comment.username) }}" alt="User Avatar" style="width:50px;">
+                <div class="media-body">
+                    <h5 class="mt-0">
+                        {{ comment.username }}
+                        <small class="text-muted">{{ comment.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+
+                        {% if current_user._id == comment.user_id %}
+                        <form action="{{ url_for('delete_comment', comment_id=comment._id) }}" method="POST" class="d-inline ms-2">
+                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this comment?')">Delete</button>
+                        </form>
+                        {% endif %}
+                    </h5>
+
+                    <p>{{ comment.content }}</p>
+
+                    <!-- Reply Form -->
+                    <form method="POST" action="{{ url_for('reply_to_comment', comment_id=comment._id) }}" class="mt-2">
+                        <div class="form-group">
+                            <textarea name="reply_content" class="form-control" rows="2" placeholder="Write a reply..." required></textarea>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary mt-1">Reply</button>
+                    </form>
+
+                    <!-- Replies -->
+                    {% if comment.replies %}
+                    <div class="mt-3">
+                        {% for reply in comment.replies %}
+                        <div class="media mt-3">
+                            <img class="d-flex mr-3 rounded-circle" src="{{ User.avatar(reply.username) }}" alt="User Avatar" style="width:40px;">
+                            <div class="media-body">
+                                <h6 class="mt-0">
+                                    {{ reply.username }}
+                                    <small class="text-muted">{{ reply.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+
+                                    {% if current_user._id == reply.user_id %}
+                                    <form action="{{ url_for('delete_comment', comment_id=reply._id) }}" method="POST" class="d-inline ms-2">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this reply?')">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </h6>
+                                <p>{{ reply.content }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if not loop.last %}<hr>{% endif %}
+            {% endfor %}
+
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

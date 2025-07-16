@@ -206,16 +206,16 @@ class Messages:
 
 
 class Post:
-    def __init__(self, username, title, content, timestamp, user_id, _id=None):
+    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=[],disliked_by=[]):
         self.title = title
         self.content = content
         self.user_id = user_id
         self.username = username
         self.timestamp = timestamp
-        self.likes = 0
-        self.liked_by = []
-        self.dislikes = 0
-        self.disliked_by = []
+        self.likes = likes
+        self.liked_by = liked_by
+        self.dislikes = dislikes
+        self.disliked_by = disliked_by
         self._id = uuid.uuid4().hex if _id is None else _id
 
     def json(self):
@@ -295,3 +295,95 @@ class Post:
     def save_to_mongo(self):
         self.content = markdown.markdown(self.content)
         db.postdb.insert_one(self.json())
+
+
+class Comment:
+    def __init__(self, post_id, user_id, username, content, parent_comment_id=None, _id=None, timestamp=None,
+                 likes=None, liked_by=None):
+        self.post_id = post_id
+        self.user_id = user_id
+        self.username = username
+        self.content = content
+        # If this is a reply, parent_comment_id will be the _id of the comment it's replying to
+        self.parent_comment_id = parent_comment_id
+
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+        self.likes = 0 if likes is None else likes
+        self.liked_by = [] if liked_by is None else liked_by
+
+    def json(self):
+        """Returns a JSON-serializable dictionary representation of the comment."""
+        return {
+            "_id": self._id,
+            "post_id": self.post_id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "content": self.content,
+            "parent_comment_id": self.parent_comment_id,
+            "timestamp": self.timestamp,
+            "likes": self.likes,
+            "liked_by": self.liked_by
+        }
+
+    def save_to_mongo(self):
+        """Saves the comment instance to the database."""
+        # You might want to use a separate collection for comments
+        db.commentdb.insert_one(self.json())
+
+    @classmethod
+    def create(cls, post_id, user_id, username, content, parent_comment_id=None):
+        """A helper method to create and save a new comment."""
+        new_comment = cls(
+            post_id=post_id,
+            user_id=user_id,
+            username=username,
+            content=content,
+            parent_comment_id=parent_comment_id
+        )
+        new_comment.save_to_mongo()
+        return new_comment
+
+    @classmethod
+    def get_by_id(cls, _id):
+        """Fetches a single comment by its unique ID."""
+        data = db.commentdb.find_one({"_id": _id})
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def find_by_post_id(cls, post_id):
+        """Fetches all comments for a specific post, sorted by time."""
+        comments_data = db.commentdb.find({"post_id": post_id}).sort("timestamp", 1)
+        return [cls(**data) for data in comments_data]
+
+    @classmethod
+    def like(cls, _id, username):
+        """Toggles a like on a comment for a given user."""
+        comment = db.commentdb.find_one({"_id": _id})
+        if not comment or username == comment.get('username'):
+            return  # Can't like your own comment
+
+        liked_by = set(comment.get("liked_by", []))
+
+        if username in liked_by:
+            liked_by.remove(username)  # Unlike
+        else:
+            liked_by.add(username)  # Like
+
+        db.commentdb.update_one(
+            {"_id": _id},
+            {
+                "$set": {
+                    "liked_by": list(liked_by),
+                    "likes": len(liked_by)
+                }
+            }
+        )
+    @property
+    def replies(self):
+        reply_data = db.commentdb.find({
+            "parent_comment_id": self._id
+        }).sort("timestamp", 1)
+        return [Comment(**data) for data in reply_data]

@@ -11,6 +11,7 @@
                     </h2>
 
                     <form action="" method="post">
+                        {{ form.hidden_tag() }}
                         {% import "bootstrap/wtf.html" as wtf %}
                         {{ wtf.form_field(form.title) }}
                         {{ wtf.form_field(form.content) }}

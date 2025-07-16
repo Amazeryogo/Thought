@@ -3,6 +3,7 @@ import jwt
 from datetime import datetime, timedelta
 from functools import wraps
 
+'''
 JWT_SECRET = os.environ.get("JWT_SECRET", SECRET_KEY)
 JWT_ALGORITHM = "HS256"
 JWT_EXP_DELTA_SECONDS = 3600
@@ -162,3 +163,4 @@ def send_message():
         return jsonify({"error": "Missing receiver or message"}), 400
     msg = Messages.send_message(g.current_user.username, receiver, message)
     return jsonify(msg)
+'''
