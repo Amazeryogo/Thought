@@ -9,3 +9,4 @@ dnspython
 waitress
 markdown
 flask-socketio
+pyjwt

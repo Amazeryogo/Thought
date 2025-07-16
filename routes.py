@@ -7,7 +7,7 @@ def load_user(user_id):
     return User.get_by_id(user_id)
 
 
-# render latest posts
+
 @appx.route('/')
 @appx.route('/home', methods=['GET', 'POST'])
 def home():
@@ -24,24 +24,6 @@ def favicon():
     return send_from_directory(os.path.join(appx.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-@appx.route("/api/messages")
-@login_required
-def get_messages():
-    user2 = request.args.get("with")
-    chat = Messages.get_chat(current_user.username, user2)
-    return jsonify([m.json() for m in chat])
-
-
-@appx.route("/api/send_message", methods=["POST"])
-@login_required
-def api_send_message():
-    data = request.get_json()
-    receiver = data["username"]
-    message = data["message"]
-    new_msg = Messages.send_message(current_user.username, receiver, message)
-    return jsonify(new_msg)
-
-
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 
@@ -53,30 +35,31 @@ def allowed_file(filename):
 @login_required
 def upload_image():
     if request.method == "POST":
-        if "image" not in request.files:
-            flash("No file part", "danger")
+        if "image[]" not in request.files:
+            flash("No files found", "danger")
             return redirect(request.url)
-
-        file = request.files["image"]
-        if file.filename == "":
-            flash("No selected file", "warning")
+        files = request.files.getlist("image[]")
+        if not files or all(f.filename == "" for f in files):
+            flash("No selected files", "warning")
             return redirect(request.url)
-
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            user_folder = os.path.join(IMAGED, current_user._id)
-            os.makedirs(user_folder, exist_ok=True)
-
-            save_path = os.path.join(user_folder, filename)
-            file.save(save_path)
-
-            flash("Image uploaded successfully!", "success")
-            return redirect(url_for("render_image", imageuid=filename))
-
-        flash("Invalid file type!", "danger")
-        return redirect(request.url)
+        user_folder = os.path.join(IMAGED, current_user._id)
+        os.makedirs(user_folder, exist_ok=True)
+        saved_files = []
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                save_path = os.path.join(user_folder, filename)
+                file.save(save_path)
+                saved_files.append(filename)
+        if saved_files:
+            flash(f"{len(saved_files)} image(s) uploaded successfully!", "success")
+            return redirect("/me")
+        else:
+            flash("No valid image files uploaded!", "danger")
+            return redirect("/me")
 
     return render_template("upload_image.html")
+
 
 @appx.route("/image/<imageuid>", methods=["GET", "POST"])
 @login_required
@@ -126,7 +109,6 @@ def register():
         if request.method == 'POST':
             username = request.form["username"]
             email = request.form["email"]
-            # invcode = request.form["invcode"]
             invcode = "idk123"
             password = generate_password_hash(request.form["password"])  # .decode('utf-8')
             find_user = User.get_by_email(email)
@@ -158,46 +140,7 @@ def login():
     return render_template('login.html', title='Login', form=form)
 
 
-@appx.route('/api/about')
-def api_about():
-    uhh = {
-        "name": "ThoughtAPI",
-        "version": "1.0"
-    }
-    return str(uhh)
 
-
-@appx.route("/api/register", methods=['GET', 'POST'])
-def registerapi():
-    x = request.args
-    username = x.get("username")
-    email = x.get("email")
-    invcode = x.get("invcode")
-    password = generate_password_hash(x.get("password"))  # .decode('utf-8')
-    find_user = User.get_by_email(email)
-    if find_user is None:
-        User.register(username, email, password, invcode)
-        return "{\"comment\" : \"OK!\"}"
-    else:
-        return "{\"comment\" : \"USER ALREADY EXISTS, ERROR 404\"}"
-
-
-@appx.route("/api/login", methods=['GET', 'POST'])
-def loginapi():
-    x = request.args
-    username = x.get("username")
-    password = x.get("password")
-    user = User.get_by_username(username)
-    if user is not None and User.login_valid(username, password):
-        return "{\"comment\" : \"OK!\"}"
-    else:
-        return "{\"comment\" : \"INVALID LOGIN, ERROR 404\"}"
-
-
-@appx.route('/api/logout')
-def logoutapi():
-    logout_user()
-    return "{\"comment\" : \" LOGGED OUT \"}"
 
 
 @appx.route("/upload/post", methods=['GET', 'POST'])
@@ -334,6 +277,12 @@ def deletemsg():
     red = "/mes/" + red
     return redirect(red)
 
+@appx.route("/messages6")
+@login_required
+def get_messages():
+    user2 = request.args.get("with")
+    chat = Messages.get_chat(current_user.username, user2)
+    return jsonify([m.json() for m in chat])
 
 
 @appx.route("/message/<username>", methods=['GET', 'POST'])

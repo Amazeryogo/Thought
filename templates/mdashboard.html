@@ -1,25 +1,36 @@
-{% include 'base.html' %}
-
+{% extends 'base.html' %}
 
 {% block content %}
-<h1 style="text-align: center;font-family: font-family: 'Roboto Slab', serif;">Messages</h1>
-    {% if k != None %}
-        {% for l in k %}
-            <div class="list-group">
-              <a href="/message/{{l[1]}}" class="list-group-item list-group-item-action flex-column align-items-start bg-active">
-                <div class="d-flex w-100 justify-content-between">
-                  <h5 class="mb-1">{{ l[1] }}</h5>
-                </div>
-                <p class="mb-1">{{ l[0]['sender'] }} said: {{ l[0]['message'] }}</p>
-              </a>
-            </div>
-        {% endfor %}
-    {% else %}
-     <div class="h-100 d-flex align-items-center justify-content-center">
-        <div style="background:white">
-            Oops! Have you messaged anyone?
-        </div>
-     </div>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow rounded-4">
+                <div class="card-body">
+                    <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
+                        Messages
+                    </h2>
+                    {% if k %}
+                        <div class="list-group">
+                            {% for l in k %}
+                                <a href="/message/{{ l[1] }}" class="list-group-item list-group-item-action rounded mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <h5 class="mb-1 fw-semibold">{{ l[1] }}</h5>
+                                    </div>
+                                    <p class="mb-1 text-muted">
+                                        {{ l[0]['sender'] }} said: {{ l[0]['message'] }}
+                                    </p>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 text-muted" style="font-size: 'Abril Fatface', cursive;">
+                            <p>Oops! Have you messaged anyone?</p>
+                        </div>
+                    {% endif %}
 
-    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -199,10 +199,8 @@ class Messages:
     def get_last_message(cls, user1, user2):
         chats = db.messagesdb.find(
             {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
-        # sort using timestamps
         chats = list(chats)
         chats.sort(key=lambda x: x["timestamp"])
-        # return the last message and the sender
         return [i for i in chats][-1]
 
 

@@ -4,7 +4,7 @@
 <div class="container my-4">
     <div class="chat-wrapper" id="chat-box" data-username="{{ username }}" data-current-user="{{ current_user.username }}">
         <div class="chat-header">
-            <a href="/{{username}}">{{ username }}</a>
+            <a href="/{{username}}" style="font-family: 'Abril Fatface', cursive;">{{ username }}</a>
         </div>
 
         <div class="chat-messages" id="messages">
@@ -55,7 +55,7 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
     async function fetchMessages() {
-        const res = await fetch(`/api/messages?with=${username}`);
+        const res = await fetch(`/messages6?with=${username}`);
         const data = await res.json();
         messagesContainer.innerHTML = '';  // Clear old messages
         data.forEach(appendMessage);
