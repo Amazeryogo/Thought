@@ -415,6 +415,15 @@ def get_messages():
     chat = Messages.get_chat(current_user.username, user2)
     return jsonify([m.json() for m in chat])
 
+@appx.route('/save_theme', methods=['POST'])
+def save_theme():
+    data = request.get_json()
+    theme = data.get('theme')
+    if theme in ['light', 'dark']:
+        session['theme'] = theme
+        return jsonify({'status': 'success'})
+    return jsonify({'status': 'error', 'message': 'Invalid theme'}), 400
+
 @appx.route("/api/send_message", methods=["POST"])
 @login_required
 def send_message_api():
