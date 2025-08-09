@@ -30,6 +30,10 @@
                                 {{ user.get_following_number() }}
                             </span>
                         </p>
+                        <p class="mb-1" id="user-status-container" style="display: none;">
+                            <strong>Status:</strong>
+                            <span id="user-status"></span>
+                        </p>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-end gap-3">
@@ -105,7 +109,28 @@
 </div>
 
 <script>
+async function fetchUserStatus() {
+    try {
+        const res = await fetch(`/api/user/{{ user.username }}/status`);
+        const data = await res.json();
+        const statusSpan = document.getElementById("user-status");
+        const statusContainer = document.getElementById("user-status-container");
+
+        if (data.online) {
+            statusSpan.textContent = "Online";
+            statusSpan.classList.add("text-success");
+        } else {
+            statusSpan.textContent = `Last seen: ${data.last_seen}`;
+            statusSpan.classList.add("text-muted");
+        }
+        statusContainer.style.display = 'block';
+    } catch (e) {
+        console.error("Failed to fetch user status", e);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+    fetchUserStatus();
     // Toggle follow icon
     const followIcon = document.getElementById("followToggle");
     if (followIcon) {

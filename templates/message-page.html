@@ -80,13 +80,40 @@ function formatMessage(msg) {
     }
   }
 
-  const addReactionButton = document.createElement("button");
-  addReactionButton.classList.add("btn", "btn-sm", "btn-outline-secondary");
-  addReactionButton.textContent = "+";
-  addReactionButton.onclick = () => showEmojiPicker(msg._id, addReactionButton);
-  reactionsDiv.appendChild(addReactionButton);
-
   messageContent.appendChild(reactionsDiv);
+
+  const emojiPicker = document.createElement('div');
+  emojiPicker.className = 'emoji-picker-hover';
+  emojiPicker.style.position = 'absolute';
+  emojiPicker.style.top = '-20px';
+  emojiPicker.style.right = '0';
+  emojiPicker.style.display = 'none';
+  emojiPicker.style.backgroundColor = 'white';
+  emojiPicker.style.border = '1px solid #ccc';
+  emojiPicker.style.borderRadius = '5px';
+  emojiPicker.style.padding = '2px';
+  emojiPicker.style.zIndex = '10';
+
+  const emojis = ["👍", "❤️", "😂", "😢", "😮"];
+  emojis.forEach(emoji => {
+      const emojiSpan = document.createElement("span");
+      emojiSpan.textContent = emoji;
+      emojiSpan.style.cursor = "pointer";
+      emojiSpan.style.padding = "3px";
+      emojiSpan.onclick = () => reactToMessage(msg._id, emoji);
+      emojiPicker.appendChild(emojiSpan);
+  });
+
+  messageContent.style.position = 'relative'; // Needed for absolute positioning of child
+  messageContent.appendChild(emojiPicker);
+
+  messageContent.addEventListener('mouseenter', () => {
+      emojiPicker.style.display = 'block';
+  });
+
+  messageContent.addEventListener('mouseleave', () => {
+      emojiPicker.style.display = 'none';
+  });
 
   if (msg.media) {
     const lowerCaseMedia = msg.media.toLowerCase();
@@ -239,48 +266,6 @@ newMessageIndicator.addEventListener('click', () => {
     fetchMessages(); // This will reload the chat and scroll to bottom
     newMessageIndicator.style.display = 'none';
 });
-
-function showEmojiPicker(messageId, button) {
-  const existingPicker = document.querySelector(".emoji-picker");
-  if (existingPicker) {
-    existingPicker.remove();
-  }
-
-  const emojiPicker = document.createElement("div");
-  emojiPicker.classList.add("emoji-picker");
-  const emojis = ["👍", "❤️", "😂", "😢", "😮"];
-  emojis.forEach(emoji => {
-    const emojiSpan = document.createElement("span");
-    emojiSpan.textContent = emoji;
-    emojiSpan.style.cursor = "pointer";
-    emojiSpan.style.padding = "5px";
-    emojiSpan.onclick = () => {
-      reactToMessage(messageId, emoji);
-      emojiPicker.remove();
-    };
-    emojiPicker.appendChild(emojiSpan);
-  });
-
-  document.body.appendChild(emojiPicker);
-  const rect = button.getBoundingClientRect();
-  emojiPicker.style.position = "absolute";
-  emojiPicker.style.top = `${rect.top - emojiPicker.offsetHeight - 10}px`;
-  emojiPicker.style.left = `${rect.left}px`;
-  emojiPicker.style.backgroundColor = "white";
-  emojiPicker.style.border = "1px solid #ccc";
-  emojiPicker.style.padding = "5px";
-  emojiPicker.style.borderRadius = "5px";
-  emojiPicker.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
-
-  // Close picker when clicking outside
-  setTimeout(() => {
-    document.addEventListener("click", (event) => {
-      if (!emojiPicker.contains(event.target) && event.target !== button) {
-        emojiPicker.remove();
-      }
-    }, { once: true });
-  }, 0);
-}
 
 async function reactToMessage(messageId, emoji) {
   const res = await fetch("/api/message/react", {
