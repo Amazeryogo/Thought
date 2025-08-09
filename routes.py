@@ -3,7 +3,6 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
-from datetime import datetime
 
 @appx.template_filter('render_post_content')
 def render_post_content(post):
@@ -39,8 +38,12 @@ def load_user(user_id):
 @appx.route('/')
 @appx.route('/home', methods=['GET', 'POST'])
 def home():
-    posts = list(db.postdb.find().sort("timestamp", DESCENDING).limit(10))
-    return render_template('home.html', posts=posts)
+    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2)
 
 
 @appx.route("/post/<post_id>", methods=["GET", "POST"])
@@ -475,8 +478,8 @@ def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id, "sender": current_user.username})
-    red = "/message/" + red
+    db.messagesdb.delete_one({"_id": msg_id})
+    red = "/mes/" + red
     return redirect(red)
 
 @appx.route("/message/<username>")
@@ -488,10 +491,9 @@ def message_page(username):
 @login_required
 def get_messages():
     user2 = request.args.get("with")
-    before = request.args.get("before")
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2, before=before)
+    chat = Messages.get_chat(current_user.username, user2)
     return jsonify([m.json() for m in chat])
 
 @appx.route('/save_theme', methods=['POST'])
@@ -519,34 +521,6 @@ def send_message_api():
 
     Messages.send_message(current_user.username, recipient, content, media=media)
     return jsonify({"success": True})
-
-
-@appx.route("/api/user/active", methods=["POST"])
-@login_required
-def user_active():
-    db.userdb.update_one(
-        {"_id": current_user._id},
-        {"$set": {"last_seen": bruh.now()}}
-    )
-    return jsonify({"success": True})
-
-
-@appx.route("/api/user/<username>/status", methods=["GET"])
-@login_required
-def user_status(username):
-    user = User.get_by_username(username)
-    if not user:
-        return jsonify({"online": False, "last_seen": "Never"}), 404
-
-    if user.last_seen and isinstance(user.last_seen, datetime):
-        # Consider online if last seen within the last 5 minutes
-        is_online = (bruh.now() - user.last_seen).total_seconds() < 300
-        last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
-    else:
-        is_online = False
-        last_seen_str = "Never"
-
-    return jsonify({"online": is_online, "last_seen": last_seen_str})
 
 
 @appx.route("/api/message/react", methods=["POST"])
