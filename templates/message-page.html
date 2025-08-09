@@ -85,7 +85,8 @@ function formatMessage(msg) {
   messageContent.appendChild(reactionsDiv);
 
   if (msg.media) {
-    if (msg.media.toLowerCase().endsWith(('.mp4', '.webm'))) {
+    const lowerCaseMedia = msg.media.toLowerCase();
+    if (lowerCaseMedia.endsWith('.mp4') || lowerCaseMedia.endsWith('.webm')) {
         const video = document.createElement("video");
         video.src = msg.media;
         video.classList.add("img-fluid", "rounded", "mt-2");

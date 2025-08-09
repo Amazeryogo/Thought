@@ -198,7 +198,15 @@ class Messages:
         return users
 
     def save_to_mongo(self):
-        db.messagesdb.insert_one(self.json())
+        db.messagesdb.insert_one({
+            "sender": self.sender,
+            "receiver": self.receiver,
+            "message": self.message,
+            "timestamp": self.timestamp,
+            "_id": self._id,
+            "reactions": self.reactions,
+            "media": self.media
+        })
 
 
     @classmethod
