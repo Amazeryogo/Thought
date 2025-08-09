@@ -155,11 +155,15 @@ class Messages:
         self.media = media
 
     def json(self):
+        if isinstance(self.timestamp, str):
+            formatted_timestamp = self.timestamp # It's already a string
+        else:
+            formatted_timestamp = self.timestamp.strftime("%I:%M %p - %b %d, %Y")
         return {
             "sender": self.sender,
             "receiver": self.receiver,
             "message": self.message,
-            "timestamp": self.timestamp.strftime("%I:%M %p - %b %d, %Y"),
+            "timestamp": formatted_timestamp,
             "_id": self._id,
             "reactions": self.reactions,
             "media": self.media
