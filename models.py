@@ -144,21 +144,25 @@ class User(UserMixin):
 
 
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None):
+    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None):
         self.sender = sender
         self.receiver = receiver
         self.timestamp = timestamp
         self.message = message
         self._id = uuid.uuid4().hex if _id is None else _id
         self.s_av = User.avatar(sender)
+        self.reactions = reactions if reactions is not None else {}
+        self.media = media
 
     def json(self):
         return {
             "sender": self.sender,
             "receiver": self.receiver,
             "message": self.message,
-            "timestamp": self.timestamp,
-            "_id": self._id
+            "timestamp": self.timestamp.strftime("%I:%M %p - %b %d, %Y"),
+            "_id": self._id,
+            "reactions": self.reactions,
+            "media": self.media
         }
 
     @classmethod
@@ -171,9 +175,9 @@ class Messages:
         return [cls(**chat) for chat in chats]
 
     @classmethod
-    def send_message(cls, sender, receiver, message):
+    def send_message(cls, sender, receiver, message, media=None):
         timestamp = bruh.now()
-        new_message = cls(sender, receiver, timestamp, message)
+        new_message = cls(sender=sender, receiver=receiver, timestamp=timestamp, message=message, media=media)
         new_message.save_to_mongo()
         return new_message.json()
 
@@ -208,17 +212,18 @@ class Messages:
 
 
 class Post:
-    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=[],disliked_by=[]):
+    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
         self.title = title
         self.content = content
         self.user_id = user_id
         self.username = username
         self.timestamp = timestamp
         self.likes = likes
-        self.liked_by = liked_by
+        self.liked_by = liked_by if liked_by is not None else []
         self.dislikes = dislikes
-        self.disliked_by = disliked_by
+        self.disliked_by = disliked_by if disliked_by is not None else []
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.images = images if images is not None else []
 
     def json(self):
         return {
@@ -232,6 +237,7 @@ class Post:
             "dislikes": self.dislikes,
             "liked_by": self.liked_by,
             "disliked_by": self.disliked_by,
+            "images": self.images
         }
 
     @classmethod
