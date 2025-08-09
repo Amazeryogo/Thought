@@ -93,7 +93,7 @@ class User(UserMixin):
         user = User.get_by_username(username)
         user_by_email = User.get_by_email(email)
         if user is None and user_by_email is None:
-            new_user = User(username, email, password, invcode)
+            new_user = User(username, email, password, invcode, last_seen=bruh.now())
             new_user.save_to_mongo()
             return True
         else:

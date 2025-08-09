@@ -269,6 +269,10 @@ def login():
             if user is not None and User.login_valid(username, password):
                 login_user(user)
                 current_user.is_authenticated = True
+                db.userdb.update_one(
+                    {"_id": user._id},
+                    {"$set": {"last_seen": bruh.now()}}
+                )
                 flash(f'You are now logged in as {form.username.data}!', 'success')
                 return redirect(next or url_for('home'))
             else:
