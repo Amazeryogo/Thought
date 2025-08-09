@@ -5,8 +5,12 @@
   <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
       <div class="card shadow rounded-4 chat-wrapper">
+        <div id="new-message-indicator" class="alert alert-info" style="display: none; position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); cursor: pointer; z-index: 10;">
+            New messages
+        </div>
         <div class="chat-header p-3 fw-bold border-bottom">
           Chat with <a href="/{{ username }}" class="text-decoration-none">{{ username }}</a>
+          <span id="online-status" class="ms-2 small"></span>
         </div>
         <div id="chat-box" class="chat-messages p-3" style="max-height: 400px; overflow-y: auto;">
           <!-- Messages will be appended here -->
@@ -122,21 +126,54 @@ function formatMessage(msg) {
   return messageDiv;
 }
 
-async function fetchMessages() {
-  try {
-    const res = await fetch(`/messages6?with=${encodeURIComponent(username)}`);
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error("Invalid data format");
+let isLoadingMore = false;
+let firstMessageId = null;
 
-    chatBox.innerHTML = "";
-    data.forEach(msg => {
-      chatBox.appendChild(formatMessage(msg));
-    });
-    chatBox.scrollTop = chatBox.scrollHeight;
-  } catch (e) {
-    console.error("Failed to load messages", e);
-  }
+async function fetchMessages(before = null) {
+    if (isLoadingMore && before) return; // prevent multiple loads when scrolling
+    isLoadingMore = true;
+
+    let url = `/messages6?with=${encodeURIComponent(username)}`;
+    if (before) {
+        url += `&before=${before}`;
+    }
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("Invalid data format");
+
+        if (data.length > 0) {
+            if (!before) { // Initial load
+                chatBox.innerHTML = "";
+                 data.forEach(msg => {
+                    chatBox.appendChild(formatMessage(msg));
+                });
+                chatBox.scrollTop = chatBox.scrollHeight;
+                firstMessageId = data[0]._id;
+
+            } else { // Prepending older messages
+                const oldScrollHeight = chatBox.scrollHeight;
+                data.forEach(msg => {
+                    chatBox.insertBefore(formatMessage(msg), chatBox.firstChild);
+                });
+                chatBox.scrollTop = chatBox.scrollHeight - oldScrollHeight;
+                firstMessageId = data[0]._id;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load messages", e);
+    } finally {
+        isLoadingMore = false;
+    }
 }
+
+chatBox.addEventListener('scroll', () => {
+    if (chatBox.scrollTop === 0 && !isLoadingMore) {
+        console.log("loading more messages");
+        fetchMessages(firstMessageId);
+    }
+});
 
 async function sendMessage() {
   const content = input.value.trim();
@@ -181,7 +218,25 @@ async function sendMessage() {
 }
 
 fetchMessages();
-setInterval(fetchMessages, 5000);
+
+setInterval(async () => {
+    const res = await fetch(`/messages6?with=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (data.length > 0 && firstMessageId && data[data.length - 1]._id !== firstMessageId) {
+        const isScrolledToBottom = chatBox.scrollHeight - chatBox.clientHeight <= chatBox.scrollTop + 1;
+        if (!isScrolledToBottom) {
+            newMessageIndicator.style.display = 'block';
+        } else {
+            // User is at the bottom, so just refresh the messages
+            fetchMessages();
+        }
+    }
+}, 5000);
+
+newMessageIndicator.addEventListener('click', () => {
+    fetchMessages(); // This will reload the chat and scroll to bottom
+    newMessageIndicator.style.display = 'none';
+});
 
 function showEmojiPicker(messageId, button) {
   const existingPicker = document.querySelector(".emoji-picker");
@@ -250,5 +305,41 @@ async function deleteMessage(messageId) {
     }
   }
 }
+
+async function updateUserStatus() {
+    try {
+        await fetch('/api/user/active', { method: 'POST' });
+    } catch (e) {
+        console.error("Failed to update user status", e);
+    }
+}
+
+async function fetchUserStatus() {
+    try {
+        const res = await fetch(`/api/user/{{ username }}/status`);
+        const data = await res.json();
+        const statusSpan = document.getElementById("online-status");
+        if (data.online) {
+            statusSpan.textContent = "Online";
+            statusSpan.classList.add("text-success");
+            statusSpan.classList.remove("text-muted");
+        } else {
+            statusSpan.textContent = `Last seen: ${data.last_seen}`;
+            statusSpan.classList.add("text-muted");
+            statusSpan.classList.remove("text-success");
+        }
+    } catch (e) {
+        console.error("Failed to fetch user status", e);
+    }
+}
+
+// Update user status every minute
+setInterval(updateUserStatus, 60000);
+updateUserStatus(); // Initial update
+
+// Fetch other user's status every minute
+setInterval(fetchUserStatus, 60000);
+fetchUserStatus(); // Initial fetch
+
 </script>
 {% endblock %}

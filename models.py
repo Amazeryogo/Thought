@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -19,6 +19,7 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
+        self.last_seen = last_seen
         try:
             self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
             self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
@@ -107,7 +108,8 @@ class User(UserMixin):
             "invcode": self.invcode,
             "password": self.password,
             "followers": self.followers,
-            "following": self.following
+            "following": self.following,
+            "last_seen": self.last_seen
         }
 
     @classmethod
@@ -170,12 +172,17 @@ class Messages:
         }
 
     @classmethod
-    def get_chat(cls, user1, user2):
-        chats = db.messagesdb.find(
-            {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
-        # sort using timestamps
+    def get_chat(cls, user1, user2, before=None, limit=20):
+        query = {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]}
+        if before:
+            # We need to get the timestamp of the 'before' message
+            before_message = db.messagesdb.find_one({"_id": before})
+            if before_message:
+                query["timestamp"] = {"$lt": before_message["timestamp"]}
+
+        chats = db.messagesdb.find(query).sort("timestamp", -1).limit(limit)
         chats = list(chats)
-        chats.sort(key=lambda x: x["timestamp"])
+        chats.reverse() # To get the messages in chronological order
         return [cls(**chat) for chat in chats]
 
     @classmethod

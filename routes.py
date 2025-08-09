@@ -483,9 +483,10 @@ def message_page(username):
 @login_required
 def get_messages():
     user2 = request.args.get("with")
+    before = request.args.get("before")
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2)
+    chat = Messages.get_chat(current_user.username, user2, before=before)
     return jsonify([m.json() for m in chat])
 
 @appx.route('/save_theme', methods=['POST'])
@@ -513,6 +514,34 @@ def send_message_api():
 
     Messages.send_message(current_user.username, recipient, content, media=media)
     return jsonify({"success": True})
+
+
+@appx.route("/api/user/active", methods=["POST"])
+@login_required
+def user_active():
+    db.userdb.update_one(
+        {"_id": current_user._id},
+        {"$set": {"last_seen": bruh.now()}}
+    )
+    return jsonify({"success": True})
+
+
+@appx.route("/api/user/<username>/status", methods=["GET"])
+@login_required
+def user_status(username):
+    user = User.get_by_username(username)
+    if not user:
+        return jsonify({"online": False, "last_seen": "Never"}), 404
+
+    if user.last_seen:
+        # Consider online if last seen within the last 5 minutes
+        is_online = (bruh.now() - user.last_seen).total_seconds() < 300
+        last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
+    else:
+        is_online = False
+        last_seen_str = "Never"
+
+    return jsonify({"online": is_online, "last_seen": last_seen_str})
 
 
 @appx.route("/api/message/react", methods=["POST"])
