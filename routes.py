@@ -3,7 +3,7 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
-import datetime
+from datetime import datetime
 
 @appx.template_filter('render_post_content')
 def render_post_content(post):
@@ -55,6 +55,7 @@ def user_active():
     )
     return jsonify({"success": True})
 
+
 @appx.route("/api/user/<username>/status", methods=["GET"])
 @login_required
 def user_status(username):
@@ -62,13 +63,13 @@ def user_status(username):
     if not user:
         return jsonify({"online": False, "last_seen": "Never"}), 404
     if user.last_seen and isinstance(user.last_seen, datetime):
-        is_online = (bruh.now() - user.last_seen).total_seconds() < 60
+        # Compare current UTC time to last_seen
+        is_online = (datetime.utcnow() - user.last_seen).total_seconds() < 60
         last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
     else:
         is_online = False
         last_seen_str = "Never"
     return jsonify({"online": is_online, "last_seen": last_seen_str})
-
 
 
 @appx.route("/post/<post_id>", methods=["GET", "POST"])
