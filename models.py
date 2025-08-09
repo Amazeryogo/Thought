@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -19,6 +19,7 @@ class User(UserMixin):
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
         self.posts = db.postdb.find({"user_id": self._id})
+        self.last_seen = last_seen
         try:
             self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
             self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
@@ -92,7 +93,7 @@ class User(UserMixin):
         user = User.get_by_username(username)
         user_by_email = User.get_by_email(email)
         if user is None and user_by_email is None:
-            new_user = User(username, email, password, invcode)
+            new_user = User(username, email, password, invcode, last_seen=bruh.now())
             new_user.save_to_mongo()
             return True
         else:
@@ -107,7 +108,8 @@ class User(UserMixin):
             "invcode": self.invcode,
             "password": self.password,
             "followers": self.followers,
-            "following": self.following
+            "following": self.following,
+            "last_seen": self.last_seen
         }
 
     @classmethod
@@ -144,36 +146,49 @@ class User(UserMixin):
 
 
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None):
+    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None):
         self.sender = sender
         self.receiver = receiver
         self.timestamp = timestamp
         self.message = message
         self._id = uuid.uuid4().hex if _id is None else _id
         self.s_av = User.avatar(sender)
+        self.reactions = reactions if reactions is not None else {}
+        self.media = media
 
     def json(self):
+        if isinstance(self.timestamp, str):
+            formatted_timestamp = self.timestamp # It's already a string
+        else:
+            formatted_timestamp = self.timestamp.strftime("%I:%M %p - %b %d, %Y")
         return {
             "sender": self.sender,
             "receiver": self.receiver,
             "message": self.message,
-            "timestamp": self.timestamp,
-            "_id": self._id
+            "timestamp": formatted_timestamp,
+            "_id": self._id,
+            "reactions": self.reactions,
+            "media": self.media
         }
 
     @classmethod
-    def get_chat(cls, user1, user2):
-        chats = db.messagesdb.find(
-            {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
-        # sort using timestamps
+    def get_chat(cls, user1, user2, before=None, limit=20):
+        query = {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]}
+        if before:
+            # We need to get the timestamp of the 'before' message
+            before_message = db.messagesdb.find_one({"_id": before})
+            if before_message:
+                query["timestamp"] = {"$lt": before_message["timestamp"]}
+
+        chats = db.messagesdb.find(query).sort("timestamp", -1).limit(limit)
         chats = list(chats)
-        chats.sort(key=lambda x: x["timestamp"])
+        chats.reverse() # To get the messages in chronological order
         return [cls(**chat) for chat in chats]
 
     @classmethod
-    def send_message(cls, sender, receiver, message):
+    def send_message(cls, sender, receiver, message, media=None):
         timestamp = bruh.now()
-        new_message = cls(sender, receiver, timestamp, message)
+        new_message = cls(sender=sender, receiver=receiver, timestamp=timestamp, message=message, media=media)
         new_message.save_to_mongo()
         return new_message.json()
 
@@ -194,7 +209,15 @@ class Messages:
         return users
 
     def save_to_mongo(self):
-        db.messagesdb.insert_one(self.json())
+        db.messagesdb.insert_one({
+            "sender": self.sender,
+            "receiver": self.receiver,
+            "message": self.message,
+            "timestamp": self.timestamp,
+            "_id": self._id,
+            "reactions": self.reactions,
+            "media": self.media
+        })
 
 
     @classmethod
@@ -208,17 +231,18 @@ class Messages:
 
 
 class Post:
-    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=[],disliked_by=[]):
+    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
         self.title = title
         self.content = content
         self.user_id = user_id
         self.username = username
         self.timestamp = timestamp
         self.likes = likes
-        self.liked_by = liked_by
+        self.liked_by = liked_by if liked_by is not None else []
         self.dislikes = dislikes
-        self.disliked_by = disliked_by
+        self.disliked_by = disliked_by if disliked_by is not None else []
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.images = images if images is not None else []
 
     def json(self):
         return {
@@ -232,6 +256,7 @@ class Post:
             "dislikes": self.dislikes,
             "liked_by": self.liked_by,
             "disliked_by": self.disliked_by,
+            "images": self.images
         }
 
     @classmethod

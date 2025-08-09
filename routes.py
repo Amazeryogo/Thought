@@ -2,6 +2,34 @@ from models import *
 from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
+import re
+from datetime import datetime
+
+@appx.template_filter('render_post_content')
+def render_post_content(post):
+    content = ""
+    media_files = []
+    if isinstance(post, dict):
+        content = post.get('content', '')
+        media_files = post.get('images', [])
+    else: # assuming it's a Post object
+        content = post.content
+        media_files = post.images
+
+    if media_files:
+        for i, media_url in enumerate(media_files):
+            placeholder = f"[image{i+1}]"
+            if media_url.lower().endswith(('.mp4', '.webm')):
+                media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
+            else:
+                media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="Post Image">'
+            content = content.replace(placeholder, media_tag)
+
+    # Remove any remaining placeholders that don't have a corresponding image
+    content = re.sub(r'\[image\d+\]', '', content)
+
+    return markdown.markdown(content)
+
 @login.user_loader
 def load_user(user_id):
     return User.get_by_id(user_id)
@@ -17,6 +45,31 @@ def home():
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2)
+
+@appx.route("/api/user/active", methods=["POST"])
+@login_required
+def user_active():
+    db.userdb.update_one(
+        {"_id": current_user._id},
+        {"$set": {"last_seen": bruh.now()}}
+    )
+    return jsonify({"success": True})
+
+
+@appx.route("/api/user/<username>/status", methods=["GET"])
+@login_required
+def user_status(username):
+    user = User.get_by_username(username)
+    if not user:
+        return jsonify({"online": False, "last_seen": "Never"}), 404
+    if user.last_seen and isinstance(user.last_seen, datetime):
+        # Compare current UTC time to last_seen
+        is_online = (datetime.utcnow() - user.last_seen).total_seconds() < 60
+        last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
+    else:
+        is_online = False
+        last_seen_str = "Never"
+    return jsonify({"online": is_online, "last_seen": last_seen_str})
 
 
 @appx.route("/post/<post_id>", methods=["GET", "POST"])
@@ -107,7 +160,7 @@ def favicon():
     return send_from_directory(os.path.join(appx.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm"}
 
 
 def allowed_file(filename):
@@ -148,6 +201,35 @@ def upload_image():
 @login_required
 def render_image(userid,imageuid):
     return send_from_directory(IMAGED + "/" + userid, imageuid)
+
+
+@appx.route("/api/upload/message_image", methods=["POST"])
+@login_required
+def upload_message_image():
+    if 'image' not in request.files:
+        return jsonify({"success": False, "error": "No image provided"}), 400
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({"success": False, "error": "No image selected"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        user_folder = os.path.join(IMAGED, "messages", current_user._id)
+        os.makedirs(user_folder, exist_ok=True)
+        save_path = os.path.join(user_folder, unique_filename)
+        file.save(save_path)
+        image_url = f"/image/messages/{current_user._id}/{unique_filename}"
+        return jsonify({"success": True, "image_url": image_url})
+
+    return jsonify({"success": False, "error": "Invalid file type"}), 400
+
+
+@appx.route("/image/messages/<userid>/<imageuid>", methods=["GET"])
+@login_required
+def render_message_image(userid, imageuid):
+    return send_from_directory(os.path.join(IMAGED, "messages", userid), imageuid)
 
 
 @appx.route("/<username>")
@@ -216,6 +298,10 @@ def login():
             if user is not None and User.login_valid(username, password):
                 login_user(user)
                 current_user.is_authenticated = True
+                db.userdb.update_one(
+                    {"_id": user._id},
+                    {"$set": {"last_seen": bruh.now()}}
+                )
                 flash(f'You are now logged in as {form.username.data}!', 'success')
                 return redirect(next or url_for('home'))
             else:
@@ -236,13 +322,28 @@ def createnewpost():
         content = form.content.data
         user_id = current_user._id
         timestamp = bruh.now().strftime('%H:%M:%S %Y-%m-%d')
+
+        image_urls = []
+        if "images" in request.files:
+            files = request.files.getlist("images")
+            for file in files:
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                    user_folder = os.path.join(IMAGED, "posts", current_user._id)
+                    os.makedirs(user_folder, exist_ok=True)
+                    save_path = os.path.join(user_folder, unique_filename)
+                    file.save(save_path)
+                    image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
+
         if len(content) <= POST_MAX:
             new_post = Post(
                 username=current_user.username,
                 title=title,
                 content=content,
                 timestamp=timestamp,
-                user_id=user_id
+                user_id=user_id,
+                images=image_urls
             )
             new_post.save_to_mongo()
             flash('Your post has been created!', 'success')
@@ -250,6 +351,12 @@ def createnewpost():
         else:
             flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
     return render_template('create_post.html', title='New Post', form=form)
+
+
+@appx.route("/image/posts/<userid>/<imageuid>", methods=["GET"])
+@login_required
+def render_post_image(userid, imageuid):
+    return send_from_directory(os.path.join(IMAGED, "posts", userid), imageuid)
 
 
 
@@ -397,8 +504,8 @@ def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id})
-    red = "/mes/" + red
+    db.messagesdb.delete_one({"_id": msg_id, "sender":current_user.username})
+    red = "/message/" + red
     return redirect(red)
 
 @appx.route("/message/<username>")
@@ -410,9 +517,10 @@ def message_page(username):
 @login_required
 def get_messages():
     user2 = request.args.get("with")
+    before = request.args.get("before")
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2)
+    chat = Messages.get_chat(current_user.username, user2,before=before)
     return jsonify([m.json() for m in chat])
 
 @appx.route('/save_theme', methods=['POST'])
@@ -430,15 +538,51 @@ def send_message_api():
     data = request.get_json()
     recipient = data.get("username")
     content = data.get("message")
+    media = data.get("media")
 
-    if not recipient or not content:
+    if not recipient or (not content and not media):
         return jsonify({"success": False, "error": "Missing data"}), 400
 
-    if len(content) > MESSAGE_MAX:
+    if content and len(content) > MESSAGE_MAX:
         return jsonify({"success": False, "error": "Message too long"}), 400
 
-    Messages.send_message(current_user.username, recipient, content)
+    Messages.send_message(current_user.username, recipient, content, media=media)
     return jsonify({"success": True})
+
+
+@appx.route("/api/message/react", methods=["POST"])
+@login_required
+def react_to_message():
+    data = request.get_json()
+    message_id = data.get("message_id")
+    emoji = data.get("emoji")
+
+    if not message_id or not emoji:
+        return jsonify({"success": False, "error": "Missing data"}), 400
+
+    message = db.messagesdb.find_one({"_id": message_id})
+    if not message:
+        return jsonify({"success": False, "error": "Message not found"}), 404
+
+    reactions = message.get("reactions", {})
+
+    if emoji not in reactions:
+        reactions[emoji] = []
+
+    # Toggle the user's reaction
+    if current_user.username in reactions[emoji]:
+        reactions[emoji].remove(current_user.username)
+        if not reactions[emoji]:
+            del reactions[emoji]
+    else:
+        reactions[emoji].append(current_user.username)
+
+    db.messagesdb.update_one(
+        {"_id": message_id},
+        {"$set": {"reactions": reactions}}
+    )
+
+    return jsonify({"success": True, "reactions": reactions})
 
 @appx.route('/avatar/<username>')
 def avatar(username):

@@ -10,11 +10,15 @@
                         Make a New Post!
                     </h2>
 
-                    <form action="" method="post">
+                    <form action="" method="post" enctype="multipart/form-data">
                         {{ form.hidden_tag() }}
                         {% import "bootstrap/wtf.html" as wtf %}
                         {{ wtf.form_field(form.title) }}
                         {{ wtf.form_field(form.content) }}
+                        <div class="mb-3">
+                            {{ form.images.label(class="form-label") }}
+                            {{ form.images(class="form-control", multiple="multiple") }}
+                        </div>
                         <button type="submit" class="btn btn-primary mt-3 d-flex align-items-center gap-1">
                             <span class="material-symbols-outlined">arrow_upload_ready</span>
                         </button>

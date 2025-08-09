@@ -30,9 +30,12 @@
                                 {{ user.get_following_number() }}
                             </span>
                         </p>
+                        <p class="mb-1" id="user-status-container" style="display: none;">
+                            <span id="user-status"></span>
+                        </p>
                     </div>
                 </div>
-                <div class="card-footer d-flex justify-content-end gap-3 bg-white">
+                <div class="card-footer d-flex justify-content-end gap-3">
 
                     {% if user.username != current_user.username %}
                         <span class="material-symbols-outlined"
@@ -61,11 +64,34 @@
     </div>
 </div>
 
-<hr class="my-5">
-
-{% for post in posts %}
-    {% include '_post.html' %}
-{% endfor %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-md-8">
+            <h3 class="mb-4">Posts</h3>
+            {% for post in posts %}
+                {% include '_post.html' %}
+            {% endfor %}
+        </div>
+        <div class="col-md-4">
+            <h3 class="mb-4">📸 Gallery</h3>
+            {% if user_images %}
+            <div class="row g-2">
+                {% for media in user_images %}
+                <div class="col-6">
+                    {% if media.lower().endswith(('.mp4', '.webm')) %}
+                    <video src="{{ url_for('render_image', userid=user._id, imageuid=media) }}" class="img-fluid rounded shadow-sm" controls></video>
+                    {% else %}
+                    <img src="{{ url_for('render_image', userid=user._id, imageuid=media) }}" class="img-fluid rounded shadow-sm" alt="User Upload">
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No images uploaded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="followModal" tabindex="-1" aria-labelledby="followModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable">
@@ -81,25 +107,29 @@
   </div>
 </div>
 
-<div class="container mt-5">
-    <h3 class="text-center mb-4" style="font-family: 'Roboto Slab', serif;">📸 Gallery</h3>
-    {% if user_images %}
-    <div class="row g-3">
-        {% for img in user_images %}
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card border-0 shadow-sm">
-                <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-center text-muted">No images uploaded yet.</p>
-    {% endif %}
-</div>
-
 <script>
+async function fetchUserStatus() {
+    try {
+        const res = await fetch(`/api/user/{{ user.username }}/status`);
+        const data = await res.json();
+        const statusSpan = document.getElementById("user-status");
+        const statusContainer = document.getElementById("user-status-container");
+
+        if (data.online) {
+            statusSpan.textContent = "Online";
+            statusSpan.classList.add("text-success");
+        } else {
+            statusSpan.textContent = `Last seen: ${data.last_seen}`;
+            statusSpan.classList.add("text-muted");
+        }
+        statusContainer.style.display = 'block';
+    } catch (e) {
+        console.error("Failed to fetch user status", e);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+    fetchUserStatus();
     // Toggle follow icon
     const followIcon = document.getElementById("followToggle");
     if (followIcon) {
