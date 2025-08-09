@@ -3,6 +3,7 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+from datetime import datetime
 
 @appx.template_filter('render_post_content')
 def render_post_content(post):
@@ -470,8 +471,8 @@ def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id})
-    red = "/mes/" + red
+    db.messagesdb.delete_one({"_id": msg_id, "sender": current_user.username})
+    red = "/message/" + red
     return redirect(red)
 
 @appx.route("/message/<username>")
@@ -533,7 +534,7 @@ def user_status(username):
     if not user:
         return jsonify({"online": False, "last_seen": "Never"}), 404
 
-    if user.last_seen:
+    if user.last_seen and isinstance(user.last_seen, datetime):
         # Consider online if last seen within the last 5 minutes
         is_online = (bruh.now() - user.last_seen).total_seconds() < 300
         last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
