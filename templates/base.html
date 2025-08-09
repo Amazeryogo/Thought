@@ -124,10 +124,43 @@
         color: white;
         font-weight: bold;
     }
+        body.dark-mode {
+            background-color: #121212;
+            color: #ffffff;
+        }
+
+        .dark-mode .navbar {
+            background-color: #1f1f1f !important;
+        }
+
+        .dark-mode .card {
+            background-color: #1f1f1f;
+            color: #ffffff;
+        }
+
+        .dark-mode .list-group-item {
+            background-color: #1f1f1f;
+            color: #ffffff;
+        }
+
+        .dark-mode .form-control {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border-color: #4d4d4d;
+        }
+
+        .dark-mode .form-control::placeholder {
+            color: #bbbbbb;
+        }
+
+        .dark-mode .modal-content {
+            background-color: #1f1f1f;
+            color: #ffffff;
+        }
         </style>
 
   </head>
-  <body>
+  <body class="{% if session.get('theme') == 'dark' %}dark-mode{% endif %}">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
   <a class="navbar-brand" href="/" style="font-family: 'Abril Fatface', cursive;">Thought</a>
   <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
@@ -152,6 +185,9 @@
         <a class="nav-link" href="/upload/image"><span class="material-symbols-outlined">photo_camera</span></a>
       </li>
     </ul>
+    <button id="theme-toggle" class="btn btn-outline-light ml-2">
+        <span class="material-symbols-outlined">brightness_6</span>
+    </button>
   </div>
 </nav>
     <br/>
@@ -171,5 +207,29 @@
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script>
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            const isDarkMode = body.classList.contains('dark-mode');
+            const newTheme = isDarkMode ? 'dark' : 'light';
+            localStorage.setItem('theme', newTheme);
+            fetch('/save_theme', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ theme: newTheme })
+            });
+        });
+
+        // Load theme from local storage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            body.classList.add('dark-mode');
+        }
+    </script>
   </body>
 </html>
