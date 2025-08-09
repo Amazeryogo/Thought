@@ -128,6 +128,7 @@ function formatMessage(msg) {
 
 let isLoadingMore = false;
 let firstMessageId = null;
+let lastMessageId = null;
 
 async function fetchMessages(before = null) {
     if (isLoadingMore && before) return; // prevent multiple loads when scrolling
@@ -151,6 +152,7 @@ async function fetchMessages(before = null) {
                 });
                 chatBox.scrollTop = chatBox.scrollHeight;
                 firstMessageId = data[0]._id;
+                lastMessageId = data[data.length - 1]._id;
 
             } else { // Prepending older messages
                 const oldScrollHeight = chatBox.scrollHeight;
@@ -222,7 +224,7 @@ fetchMessages();
 setInterval(async () => {
     const res = await fetch(`/messages6?with=${encodeURIComponent(username)}`);
     const data = await res.json();
-    if (data.length > 0 && firstMessageId && data[data.length - 1]._id !== firstMessageId) {
+    if (data.length > 0 && lastMessageId && data[data.length - 1]._id !== lastMessageId) {
         const isScrolledToBottom = chatBox.scrollHeight - chatBox.clientHeight <= chatBox.scrollTop + 1;
         if (!isScrolledToBottom) {
             newMessageIndicator.style.display = 'block';
