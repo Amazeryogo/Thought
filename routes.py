@@ -3,6 +3,7 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+import datetime
 
 @appx.template_filter('render_post_content')
 def render_post_content(post):
@@ -44,6 +45,30 @@ def home():
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2)
+
+@appx.route("/api/user/active", methods=["POST"])
+@login_required
+def user_active():
+    db.userdb.update_one(
+        {"_id": current_user._id},
+        {"$set": {"last_seen": bruh.now()}}
+    )
+    return jsonify({"success": True})
+
+@appx.route("/api/user/<username>/status", methods=["GET"])
+@login_required
+def user_status(username):
+    user = User.get_by_username(username)
+    if not user:
+        return jsonify({"online": False, "last_seen": "Never"}), 404
+    if user.last_seen and isinstance(user.last_seen, datetime):
+        is_online = (bruh.now() - user.last_seen).total_seconds() < 60
+        last_seen_str = user.last_seen.strftime("%I:%M %p - %b %d, %Y")
+    else:
+        is_online = False
+        last_seen_str = "Never"
+    return jsonify({"online": is_online, "last_seen": last_seen_str})
+
 
 
 @appx.route("/post/<post_id>", methods=["GET", "POST"])
@@ -478,8 +503,8 @@ def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     red = x.get("redirect")
-    db.messagesdb.delete_one({"_id": msg_id})
-    red = "/mes/" + red
+    db.messagesdb.delete_one({"_id": msg_id, "sender":current_user.username})
+    red = "/message/" + red
     return redirect(red)
 
 @appx.route("/message/<username>")
@@ -491,9 +516,10 @@ def message_page(username):
 @login_required
 def get_messages():
     user2 = request.args.get("with")
+    before = request.args.get("before")
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2)
+    chat = Messages.get_chat(current_user.username, user2,before=before)
     return jsonify([m.json() for m in chat])
 
 @appx.route('/save_theme', methods=['POST'])
