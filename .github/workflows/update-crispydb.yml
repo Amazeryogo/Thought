@@ -1,0 +1,22 @@
+name: Update CrispyDB Submodule
+
+on:
+  repository_dispatch:
+    types: [update-crispydb]
+
+jobs:
+  update-submodule:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Thought repo
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.PAT }}
+
+      - name: Update submodule to latest commit
+        run: |
+          git submodule update --remote --merge CrispyDB
+          git add CrispyDB
+          git commit -m "Update CrispyDB submodule to latest commit" || echo "No changes"
+          git push origin main
