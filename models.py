@@ -115,12 +115,6 @@ class User(UserMixin):
     @classmethod
     def avatar(cls, username):
         return f'/avatar/{username}'
-        '''
-        user = db.userdb.find_one({"username": username})
-        email = user.get("email", "").strip().lower() if user else ""
-        email_hash = md5(email.encode()).hexdigest()
-        return f"https://www.gravatar.com/avatar/{email_hash}?d=identicon"
-        '''
 
     def get_followers_number(self):
         return len(self.get_followers())

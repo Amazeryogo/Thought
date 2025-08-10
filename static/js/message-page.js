@@ -1,32 +1,3 @@
-{% extends "base.html" %}
-
-{% block content %}
-<div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-      <div class="card shadow rounded-4 chat-wrapper">
-        <div class="chat-header p-3 fw-bold border-bottom">
-          Chat with <a href="/{{ username }}" class="text-decoration-none">{{ username }}</a>
-        </div>
-        <div id="chat-box" class="chat-messages p-3" style="max-height: 400px; overflow-y: auto;">
-          <!-- Messages will be appended here -->
-        </div>
-        <div class="chat-input p-3 border-top">
-          <form onsubmit="event.preventDefault(); sendMessage();">
-            <div class="input-group">
-              <input id="chatInput" type="text" class="form-control" placeholder="Type your message...">
-              <button class="btn btn-primary" type="submit">
-                <span class="material-symbols-outlined">send</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-<script>
   function md5(string) {
   return CryptoJS.MD5(string).toString();
 }
@@ -104,5 +75,3 @@ async function sendMessage() {
 
 fetchMessages();
 setInterval(fetchMessages, 5000);
-</script>
-{% endblock %}
