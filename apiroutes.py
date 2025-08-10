@@ -1,17 +1,17 @@
-from . import appx, db
-from .models import User, Post, Messages
-from flask import request, jsonify, g
+from routes import *
 import jwt
 from datetime import datetime, timedelta
 from functools import wraps
-from . import JWT_SECRET, JWT_ALGORITHM
+from core import appx, db
+from models import User, Post, Messages
+from flask import request, jsonify, g
 
 def generate_jwt(user_id):
     payload = {
         "user_id": user_id,
         "exp": datetime.utcnow() + timedelta(seconds=JWT_EXP_DELTA_SECONDS)
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, appx.config['JWT_SECRET'], algorithm=appx.config['JWT_ALGORITHM'])
 
 # Helper: Decorator to protect API routes
 def jwt_required(f):
@@ -24,7 +24,7 @@ def jwt_required(f):
         if not token:
             return jsonify({"message": "Missing token"}), 401
         try:
-            data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            data = jwt.decode(token, appx.config['JWT_SECRET'], algorithms=[appx.config['JWT_ALGORITHM']])
             user = User.get_by_id(data["user_id"])
             if not user:
                 raise Exception("User not found")
@@ -108,7 +108,7 @@ def api_toggle_follow(username):
 @appx.route('/api/posts', methods=['GET'])
 @jwt_required
 def get_all_posts():
-    posts = db.postdb.find().sort("timestamp", "descending")
+    posts = db.postdb.find().sort("timestamp", -1)
     result = []
     for post in posts:
         result.append({

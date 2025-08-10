@@ -1,13 +1,12 @@
-from . import db
-from flask_login import UserMixin
+from core import *
 from werkzeug.security import check_password_hash
 import markdown
+from itsdangerous import URLSafeTimedSerializer as Serializer
+from flask_mail import Message as FlaskMessage
+from core import appx, mail
 from hashlib import md5
 import uuid
 from datetime import datetime as bruh
-from . import appx, mail
-from itsdangerous import URLSafeTimedSerializer as Serializer
-from flask_mail import Message as FlaskMessage
 
 class User(UserMixin):
     def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
@@ -140,7 +139,7 @@ class User(UserMixin):
 
     def get_reset_token(self, expires_sec=1800):
         s = Serializer(appx.config['SECRET_KEY'])
-        return s.dumps({'user_id': self.get_id()}).decode('utf-8')
+        return s.dumps({'user_id': self.get_id()})
 
     @staticmethod
     def verify_reset_token(token):
@@ -161,7 +160,6 @@ class User(UserMixin):
                               recipients=[user.email])
             msg.body = f'''To reset your password, visit the following link:
 {url_for('reset_token', token=token, _external=True)}
-
 If you did not make this request then simply ignore this email and no changes will be made.
 '''
             mail.send(msg)

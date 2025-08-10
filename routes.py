@@ -1,9 +1,6 @@
-from .models import *
-from .forms import *
+from models import *
+from forms import *
 from werkzeug.utils import secure_filename
-from . import appx, db, login
-from flask import render_template, request, redirect, url_for, flash, abort, send_from_directory, jsonify, session
-from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash
 import re
 from datetime import datetime
