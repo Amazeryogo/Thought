@@ -2,7 +2,7 @@ from routes import *
 import jwt
 from datetime import datetime, timedelta
 from functools import wraps
-from core import appx, db
+from core import app, db
 from models import User, Post, Messages
 from flask import request, jsonify, g
 
@@ -11,7 +11,7 @@ def generate_jwt(user_id):
         "user_id": user_id,
         "exp": datetime.utcnow() + timedelta(seconds=JWT_EXP_DELTA_SECONDS)
     }
-    return jwt.encode(payload, appx.config['JWT_SECRET'], algorithm=appx.config['JWT_ALGORITHM'])
+    return jwt.encode(payload, app.config['JWT_SECRET'], algorithm=app.config['JWT_ALGORITHM'])
 
 # Helper: Decorator to protect API routes
 def jwt_required(f):
@@ -24,7 +24,7 @@ def jwt_required(f):
         if not token:
             return jsonify({"message": "Missing token"}), 401
         try:
-            data = jwt.decode(token, appx.config['JWT_SECRET'], algorithms=[appx.config['JWT_ALGORITHM']])
+            data = jwt.decode(token, app.config['JWT_SECRET'], algorithms=[app.config['JWT_ALGORITHM']])
             user = User.get_by_id(data["user_id"])
             if not user:
                 raise Exception("User not found")
@@ -34,7 +34,7 @@ def jwt_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@appx.route("/api/login", methods=["POST"])
+@app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json()
     username = data.get("username")
@@ -45,7 +45,7 @@ def api_login():
         return jsonify({"success": True, "token": token, "username": username})
     return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
-@appx.route('/api/me', methods=['GET'])
+@app.route('/api/me', methods=['GET'])
 @jwt_required
 def get_me():
     user = g.current_user
@@ -56,7 +56,7 @@ def get_me():
         "avatar": User.avatar(user.username)
     })
 
-@appx.route('/api/user/<username>', methods=['GET'])
+@app.route('/api/user/<username>', methods=['GET'])
 @jwt_required
 def get_user_profile(username):
     user = User.get_by_username(username)
@@ -71,7 +71,7 @@ def get_user_profile(username):
         "avatar": User.avatar(user.username)
     })
 
-@appx.route('/api/user/<username>/follow', methods=['POST'])
+@app.route('/api/user/<username>/follow', methods=['POST'])
 @jwt_required
 def api_toggle_follow(username):
     if username == g.current_user.username:
@@ -105,7 +105,7 @@ def api_toggle_follow(username):
         "follower_count": follower_count
     })
 
-@appx.route('/api/posts', methods=['GET'])
+@app.route('/api/posts', methods=['GET'])
 @jwt_required
 def get_all_posts():
     posts = db.postdb.find().sort("timestamp", -1)
@@ -122,7 +122,7 @@ def get_all_posts():
         })
     return jsonify(result)
 
-@appx.route('/api/post/<post_id>/like', methods=['POST'])
+@app.route('/api/post/<post_id>/like', methods=['POST'])
 @jwt_required
 def api_like_post(post_id):
     Post.liked(_id=post_id, userx=g.current_user.username)
@@ -133,7 +133,7 @@ def api_like_post(post_id):
         "dislikes": post.get("dislikes", 0)
     })
 
-@appx.route('/api/post/<post_id>/dislike', methods=['POST'])
+@app.route('/api/post/<post_id>/dislike', methods=['POST'])
 @jwt_required
 def api_dislike_post(post_id):
     Post.disliked(_id=post_id, userx=g.current_user.username)
@@ -144,13 +144,13 @@ def api_dislike_post(post_id):
         "dislikes": post.get("dislikes", 0)
     })
 
-@appx.route('/api/messages/<username>', methods=['GET'])
+@app.route('/api/messages/<username>', methods=['GET'])
 @jwt_required
 def get_chat_with_user(username):
     messages = Messages.get_chat(g.current_user.username, username)
     return jsonify([m.json() for m in messages])
 
-@appx.route('/api/message/send', methods=['POST'])
+@app.route('/api/message/send', methods=['POST'])
 @jwt_required
 def send_message():
     data = request.get_json()

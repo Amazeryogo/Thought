@@ -3,7 +3,7 @@ from werkzeug.security import check_password_hash
 import markdown
 from itsdangerous import URLSafeTimedSerializer as Serializer
 from flask_mail import Message as FlaskMessage
-from core import appx, mail
+from core import app, mail
 from hashlib import md5
 import uuid
 from datetime import datetime as bruh
@@ -138,12 +138,12 @@ class User(UserMixin):
         return self.email
 
     def get_reset_token(self, expires_sec=1800):
-        s = Serializer(appx.config['SECRET_KEY'])
+        s = Serializer(app.config['SECRET_KEY'])
         return s.dumps({'user_id': self.get_id()})
 
     @staticmethod
     def verify_reset_token(token):
-        s = Serializer(appx.config['SECRET_KEY'])
+        s = Serializer(app.config['SECRET_KEY'])
         try:
             user_id = s.loads(token)['user_id']
         except:

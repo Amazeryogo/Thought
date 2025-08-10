@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 import re
 from datetime import datetime
 
-@appx.template_filter('render_post_content')
+@app.template_filter('render_post_content')
 def render_post_content(post):
     content = ""
     media_files = []
@@ -36,8 +36,8 @@ def load_user(user_id):
 
 
 
-@appx.route('/')
-@appx.route('/home', methods=['GET', 'POST'])
+@app.route('/')
+@app.route('/home', methods=['GET', 'POST'])
 def home():
     posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
     p2 = []
@@ -46,7 +46,7 @@ def home():
         p2.append(i)
     return render_template('home.html', posts=p2)
 
-@appx.route("/api/user/active", methods=["POST"])
+@app.route("/api/user/active", methods=["POST"])
 @login_required
 def user_active():
     db.userdb.update_one(
@@ -56,7 +56,7 @@ def user_active():
     return jsonify({"success": True})
 
 
-@appx.route("/api/user/<username>/status", methods=["GET"])
+@app.route("/api/user/<username>/status", methods=["GET"])
 @login_required
 def user_status(username):
     user = User.get_by_username(username)
@@ -72,7 +72,7 @@ def user_status(username):
     return jsonify({"online": is_online, "last_seen": last_seen_str})
 
 
-@appx.route("/post/<post_id>", methods=["GET", "POST"])
+@app.route("/post/<post_id>", methods=["GET", "POST"])
 @login_required
 def post_view(post_id):
     post = Post.get_by_id(post_id)
@@ -120,7 +120,7 @@ def post_view(post_id):
         User=User
     )
 
-@appx.route("/comment/reply/<comment_id>", methods=["POST"])
+@app.route("/comment/reply/<comment_id>", methods=["POST"])
 @login_required
 def reply_to_comment(comment_id):
     parent_comment = Comment.get_by_id(comment_id)
@@ -143,7 +143,7 @@ def reply_to_comment(comment_id):
             flash("comment too large", 'warning')
     return redirect(request.referrer)
 
-@appx.route("/comment/delete/<comment_id>", methods=["POST"])
+@app.route("/comment/delete/<comment_id>", methods=["POST"])
 @login_required
 def delete_comment(comment_id):
     comment = Comment.get_by_id(comment_id)
@@ -155,9 +155,9 @@ def delete_comment(comment_id):
     return redirect(request.referrer)
 
 
-@appx.route('/favicon.ico')
+@app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(appx.root_path, 'static'),
+    return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm"}
@@ -167,7 +167,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@appx.route("/upload/image", methods=["GET", "POST"])
+@app.route("/upload/image", methods=["GET", "POST"])
 @login_required
 def upload_image():
     if request.method == "POST":
@@ -197,13 +197,13 @@ def upload_image():
     return render_template("upload_image.html")
 
 
-@appx.route("/image/<userid>/<imageuid>", methods=["GET", "POST"])
+@app.route("/image/<userid>/<imageuid>", methods=["GET", "POST"])
 @login_required
 def render_image(userid,imageuid):
     return send_from_directory(IMAGED + "/" + userid, imageuid)
 
 
-@appx.route("/api/upload/message_image", methods=["POST"])
+@app.route("/api/upload/message_image", methods=["POST"])
 @login_required
 def upload_message_image():
     if 'image' not in request.files:
@@ -226,13 +226,13 @@ def upload_message_image():
     return jsonify({"success": False, "error": "Invalid file type"}), 400
 
 
-@appx.route("/image/messages/<userid>/<imageuid>", methods=["GET"])
+@app.route("/image/messages/<userid>/<imageuid>", methods=["GET"])
 @login_required
 def render_message_image(userid, imageuid):
     return send_from_directory(os.path.join(IMAGED, "messages", userid), imageuid)
 
 
-@appx.route("/<username>")
+@app.route("/<username>")
 @login_required
 def user(username):
     if username == "me":
@@ -261,7 +261,7 @@ def user(username):
         user_images=user_images
     )
 
-@appx.route("/register", methods=['GET', 'POST'])
+@app.route("/register", methods=['GET', 'POST'])
 def register():
     form = CreateUserForm()
     if form.validate_on_submit():
@@ -286,7 +286,7 @@ def register():
     return render_template('register.html', title='Register', form=form)
 
 
-@appx.route("/login", methods=['GET', 'POST'])
+@app.route("/login", methods=['GET', 'POST'])
 def login():
     next = request.args.get('next')
     form = LoginForm()
@@ -312,7 +312,7 @@ def login():
 
 
 
-@appx.route("/upload/post", methods=['GET', 'POST'])
+@app.route("/upload/post", methods=['GET', 'POST'])
 @login_required
 def createnewpost():
     form = PostForm()
@@ -353,14 +353,14 @@ def createnewpost():
     return render_template('create_post.html', title='New Post', form=form)
 
 
-@appx.route("/image/posts/<userid>/<imageuid>", methods=["GET"])
+@app.route("/image/posts/<userid>/<imageuid>", methods=["GET"])
 @login_required
 def render_post_image(userid, imageuid):
     return send_from_directory(os.path.join(IMAGED, "posts", userid), imageuid)
 
 
 
-@appx.route("/deletepost", methods=['GET', 'POST'])
+@app.route("/deletepost", methods=['GET', 'POST'])
 @login_required
 def deletepost():
     x = request.args
@@ -369,7 +369,7 @@ def deletepost():
     return redirect('/me')
 
 
-@appx.route("/like", methods=['POST'])
+@app.route("/like", methods=['POST'])
 @login_required
 def like():
     post_id = request.args.get("post_id")
@@ -385,7 +385,7 @@ def like():
     })
 
 
-@appx.route("/dislike", methods=['POST'])
+@app.route("/dislike", methods=['POST'])
 @login_required
 def dislike():
     post_id = request.args.get("post_id")
@@ -400,13 +400,13 @@ def dislike():
         "dislikes": post.get("dislikes", 0)
     })
 
-@appx.route("/set/aboutme", methods=['GET', 'POST'])
+@app.route("/set/aboutme", methods=['GET', 'POST'])
 @login_required
 def setaboutme():
     return redirect('/settings')
 
 
-@appx.route("/settings", methods=['GET', 'POST'])
+@app.route("/settings", methods=['GET', 'POST'])
 @login_required
 def settings():
     form = AboutMeForm()
@@ -456,24 +456,24 @@ def settings():
 
 
 
-@appx.errorhandler(404)
+@app.errorhandler(404)
 def page_not_found(e):
     return render_template('errors/404.html')
 
 
-@appx.route('/404')
+@app.route('/404')
 def x404():
     return render_template('errors/404.html')
 
 
-@appx.route('/logout', methods=['GET', 'POST'])
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
     logout_user()
     flash('bye bye!','success')
     return redirect('/')
 
 
-@appx.route('/request_reset_password', methods=['GET', 'POST'])
+@app.route('/request_reset_password', methods=['GET', 'POST'])
 def request_reset_password():
     form = RequestResetForm()
     if form.validate_on_submit():
@@ -487,7 +487,7 @@ def request_reset_password():
     return render_template('request_reset_password.html', title='Reset Password', form=form)
 
 
-@appx.route("/reset_password/<token>", methods=['GET', 'POST'])
+@app.route("/reset_password/<token>", methods=['GET', 'POST'])
 def reset_token(token):
     user = User.verify_reset_token(token)
     if user is None:
@@ -503,7 +503,7 @@ def reset_token(token):
     return render_template('reset_password.html', title='Reset Password', form=form)
 
 
-@appx.route("/messaging/dashboard", methods=['GET', 'POST'])
+@app.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
     k = []
@@ -516,7 +516,7 @@ def messagingdashboard():
     return render_template('mdashboard.html', k=k)
 
 
-@appx.route('/deletemsg')
+@app.route('/deletemsg')
 @login_required
 def deletemsg():
     x = request.args
@@ -526,12 +526,12 @@ def deletemsg():
     red = "/message/" + red
     return redirect(red)
 
-@appx.route("/message/<username>")
+@app.route("/message/<username>")
 @login_required
 def message_page(username):
     return render_template("message-page.html", username=username)
 
-@appx.route("/messages6")
+@app.route("/messages6")
 @login_required
 def get_messages():
     user2 = request.args.get("with")
@@ -541,7 +541,7 @@ def get_messages():
     chat = Messages.get_chat(current_user.username, user2,before=before)
     return jsonify([m.json() for m in chat])
 
-@appx.route('/save_theme', methods=['POST'])
+@app.route('/save_theme', methods=['POST'])
 def save_theme():
     data = request.get_json()
     theme = data.get('theme')
@@ -550,7 +550,7 @@ def save_theme():
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Invalid theme'}), 400
 
-@appx.route("/api/send_message", methods=["POST"])
+@app.route("/api/send_message", methods=["POST"])
 @login_required
 def send_message_api():
     data = request.get_json()
@@ -568,7 +568,7 @@ def send_message_api():
     return jsonify({"success": True})
 
 
-@appx.route("/api/message/react", methods=["POST"])
+@app.route("/api/message/react", methods=["POST"])
 @login_required
 def react_to_message():
     data = request.get_json()
@@ -602,7 +602,7 @@ def react_to_message():
 
     return jsonify({"success": True, "reactions": reactions})
 
-@appx.route('/avatar/<username>')
+@app.route('/avatar/<username>')
 def avatar(username):
     static_dir = os.path.join(STATIC_FOLDER, username)
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
@@ -615,7 +615,7 @@ def avatar(username):
 
 
 
-@appx.route("/follow/<username>", methods=["POST"])
+@app.route("/follow/<username>", methods=["POST"])
 @login_required
 def toggle_follow(username):
     if username == current_user.username:
@@ -662,7 +662,7 @@ def toggle_follow(username):
         "follower_count": follower_count
     })
 
-@appx.route("/followers/<username>")
+@app.route("/followers/<username>")
 @login_required
 def get_followers(username):
     user = db.userdb.find_one({"username": username})
@@ -674,7 +674,7 @@ def get_followers(username):
         "users": user.get("followers", [])
     })
 
-@appx.route("/following/<username>")
+@app.route("/following/<username>")
 @login_required
 def get_following(username):
     user = db.userdb.find_one({"username": username})
@@ -686,7 +686,7 @@ def get_following(username):
         "users": user.get("following", [])
     })
 
-@appx.route("/edit/post/<post_id>", methods=['GET', 'POST'])
+@app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required
 def edit_post(post_id):
     post = Post.get_by_id(post_id)
