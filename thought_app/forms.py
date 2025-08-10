@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, PasswordField, BooleanField, SubmitField, MultipleFileField
 from wtforms.validators import DataRequired
+from wtforms.validators import EqualTo
 
 
 class LoginForm(FlaskForm):
@@ -30,8 +31,14 @@ class AboutMeForm(FlaskForm):
     submit = SubmitField('Update')
 
 
-class ResetPasswordRequestForm(FlaskForm):
+class RequestResetForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired()])
+    submit = SubmitField('Request Password Reset')
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password',
+                                     validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Request Password Reset')
 
 

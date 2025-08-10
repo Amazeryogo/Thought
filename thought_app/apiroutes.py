@@ -1,13 +1,10 @@
-from routes import *
+from . import appx, db
+from .models import User, Post, Messages
+from flask import request, jsonify, g
 import jwt
 from datetime import datetime, timedelta
 from functools import wraps
-
-'''
-JWT_SECRET = os.environ.get("JWT_SECRET", SECRET_KEY)
-JWT_ALGORITHM = "HS256"
-JWT_EXP_DELTA_SECONDS = 3600
-
+from . import JWT_SECRET, JWT_ALGORITHM
 
 def generate_jwt(user_id):
     payload = {
@@ -111,7 +108,7 @@ def api_toggle_follow(username):
 @appx.route('/api/posts', methods=['GET'])
 @jwt_required
 def get_all_posts():
-    posts = db.postdb.find().sort("timestamp", DESCENDING)
+    posts = db.postdb.find().sort("timestamp", "descending")
     result = []
     for post in posts:
         result.append({
@@ -163,4 +160,3 @@ def send_message():
         return jsonify({"error": "Missing receiver or message"}), 400
     msg = Messages.send_message(g.current_user.username, receiver, message)
     return jsonify(msg)
-'''
