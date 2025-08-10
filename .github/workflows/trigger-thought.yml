@@ -1,0 +1,18 @@
+name: Trigger Thought Update
+
+on:
+  push:
+    branches:
+      - main  # or your default branch in CrispyDB
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger update in Thought repo
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: token ${{ secrets.PAT }}" \
+            https://api.github.com/repos/Amazeryogo/Thought/dispatches \
+            -d '{"event_type":"update-crispydb"}'
