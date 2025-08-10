@@ -10,3 +10,4 @@ gunicorn
 markdown
 flask-socketio
 pyjwt
+Flask-Mail

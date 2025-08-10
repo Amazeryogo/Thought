@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, PasswordField, BooleanField, SubmitField, MultipleFileField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Email, EqualTo
 
 
 class LoginForm(FlaskForm):
@@ -13,7 +13,7 @@ class LoginForm(FlaskForm):
 class CreateUserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
-    email = StringField('Email', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Join Thought')
 
 
@@ -25,21 +25,21 @@ class PostForm(FlaskForm):
 
 
 class AboutMeForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
     content = TextAreaField('About Me', validators=[DataRequired()])
     submit = SubmitField('Update')
 
 
-class ResetPasswordRequestForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired()])
+class RequestResetForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Request Password Reset')
-
 
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
-    repeat = PasswordField(
-        'Repeat Password', validators=[DataRequired()])
-    submit = SubmitField('Please Reset my password')
+    confirm_password = PasswordField('Confirm Password',
+                                     validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Reset Password')
+
 
 class CommentForm(FlaskForm):
     content = TextAreaField('Your Comment', validators=[DataRequired()], render_kw={"class": "form-control", "rows": 3})
