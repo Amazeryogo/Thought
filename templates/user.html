@@ -87,7 +87,11 @@
     <div class="row g-3">
         {% for img in user_images %}
         <div class="col-6 col-md-4 col-lg-3">
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm gallery-item" style="cursor: pointer;"
+                 data-bs-toggle="modal"
+                 data-bs-target="#galleryModal"
+                 data-image-url="{{ url_for('render_image', userid=user._id, imageuid=img) }}"
+                 data-image-id="{{ img }}">
                 <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
             </div>
         </div>
@@ -96,6 +100,39 @@
     {% else %}
     <p class="text-center text-muted">No images uploaded yet.</p>
     {% endif %}
+</div>
+
+<!-- Gallery Modal -->
+<div class="modal fade" id="galleryModal" tabindex="-1" aria-labelledby="galleryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="galleryModalLabel">Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="galleryModalImage" src="" class="img-fluid rounded" alt="Gallery Image">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-success" id="likeButton">
+            <span class="material-symbols-outlined">thumb_up</span>
+            <span id="likeCount"></span>
+        </button>
+        <button type="button" class="btn btn-outline-danger" id="dislikeButton">
+            <span class="material-symbols-outlined">thumb_down</span>
+            <span id="dislikeCount"></span>
+        </button>
+        <a id="downloadButton" href="#" class="btn btn-primary" download>
+            <span class="material-symbols-outlined">download</span>
+        </a>
+        {% if user.username == current_user.username %}
+        <button type="button" class="btn btn-danger" id="deleteImageButton">
+            <span class="material-symbols-outlined">delete</span>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/user.html.js') }}"></script>

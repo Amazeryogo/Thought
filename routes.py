@@ -39,12 +39,19 @@ def load_user(user_id):
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
-    p2 = []
-    for i in posts:
-        i['content'] = markdown.markdown(i['content'])
-        p2.append(i)
-    return render_template('home.html', posts=p2)
+    if current_user.is_authenticated:
+        following = current_user.following
+        if not following:
+            posts = []
+        else:
+            posts = db.postdb.find({"username": {"$in": following}}).sort("timestamp", DESCENDING).limit(10)
+        p2 = []
+        for i in posts:
+            i['content'] = markdown.markdown(i['content'])
+            p2.append(i)
+        return render_template('home.html', posts=p2)
+    else:
+        return render_template('index.html')
 
 @app.route("/api/user/active", methods=["POST"])
 @login_required
@@ -685,6 +692,45 @@ def get_following(username):
         "type": "following",
         "users": user.get("following", [])
     })
+
+@app.route("/gallery/image/<image_id>/delete", methods=["POST"])
+@login_required
+def delete_gallery_image(image_id):
+    image_path = os.path.join(IMAGED, current_user._id, image_id)
+    if os.path.exists(image_path):
+        os.remove(image_path)
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "Image not found"}), 404
+
+@app.route("/gallery/image/<image_id>/like", methods=["POST"])
+@login_required
+def like_gallery_image(image_id):
+    db.gallery_likes.update_one(
+        {"_id": image_id},
+        {"$addToSet": {"likes": current_user.username}, "$pull": {"dislikes": current_user.username}},
+        upsert=True
+    )
+    likes = db.gallery_likes.find_one({"_id": image_id})
+    return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
+
+@app.route("/gallery/image/<image_id>/dislike", methods=["POST"])
+@login_required
+def dislike_gallery_image(image_id):
+    db.gallery_likes.update_one(
+        {"_id": image_id},
+        {"$addToSet": {"dislikes": current_user.username}, "$pull": {"likes": current_user.username}},
+        upsert=True
+    )
+    likes = db.gallery_likes.find_one({"_id": image_id})
+    return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
+
+@app.route("/gallery/image/<image_id>/counts", methods=["GET"])
+@login_required
+def get_gallery_image_counts(image_id):
+    likes = db.gallery_likes.find_one({"_id": image_id})
+    if likes:
+        return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
+    return jsonify({"success": True, "likes": 0, "dislikes": 0})
 
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required

@@ -35,6 +35,71 @@ document.addEventListener("DOMContentLoaded", function () {
             clearTimeout(timer);
         });
     });
+
+    // Gallery Modal Logic
+    const galleryModal = document.getElementById('galleryModal');
+    galleryModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const imageUrl = button.getAttribute('data-image-url');
+        const imageId = button.getAttribute('data-image-id');
+
+        const modalImage = galleryModal.querySelector('#galleryModalImage');
+        const downloadButton = galleryModal.querySelector('#downloadButton');
+        const deleteButton = galleryModal.querySelector('#deleteImageButton');
+        const likeButton = galleryModal.querySelector('#likeButton');
+        const dislikeButton = galleryModal.querySelector('#dislikeButton');
+        const likeCount = galleryModal.querySelector('#likeCount');
+        const dislikeCount = galleryModal.querySelector('#dislikeCount');
+
+        modalImage.src = imageUrl;
+        downloadButton.href = imageUrl;
+
+        // Fetch initial like/dislike counts
+        fetch(`/gallery/image/${imageId}/counts`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    likeCount.textContent = data.likes;
+                    dislikeCount.textContent = data.dislikes;
+                }
+            });
+
+        if (deleteButton) {
+            deleteButton.onclick = function() {
+                fetch(`/gallery/image/${imageId}/delete`, { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert(data.message || 'Could not delete image.');
+                        }
+                    });
+            };
+        }
+
+        likeButton.onclick = function() {
+            fetch(`/gallery/image/${imageId}/like`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        likeCount.textContent = data.likes;
+                        dislikeCount.textContent = data.dislikes;
+                    }
+                });
+        };
+
+        dislikeButton.onclick = function() {
+            fetch(`/gallery/image/${imageId}/dislike`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        likeCount.textContent = data.likes;
+                        dislikeCount.textContent = data.dislikes;
+                    }
+                });
+        };
+    });
 });
 
 function openFollowModal(username, type) {

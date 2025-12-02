@@ -5,7 +5,6 @@
             body.classList.toggle('dark-mode');
             const isDarkMode = body.classList.contains('dark-mode');
             const newTheme = isDarkMode ? 'dark' : 'light';
-            localStorage.setItem('theme', newTheme);
             fetch('/save_theme', {
                 method: 'POST',
                 headers: {
@@ -14,9 +13,3 @@
                 body: JSON.stringify({ theme: newTheme })
             });
         });
-
-        // Load theme from local storage
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            body.classList.add('dark-mode');
-        }
