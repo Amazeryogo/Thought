@@ -1,6 +1,7 @@
 run.sh
 .idea/
 __pycache__/
-IMAGES/
+CONTENT/IMAGES/
+CONTENT/bluh/
 secretkey.txt
 *.log

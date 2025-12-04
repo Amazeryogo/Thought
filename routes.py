@@ -502,7 +502,7 @@ def settings():
                     flash("Invalid file type", "danger")
                 else:
                     ext = file.filename.rsplit('.', 1)[1].lower()
-                    user_dir = os.path.join(STATIC_FOLDER, current_user.username)
+                    user_dir = os.path.join(PFP_FOLDER, current_user.username)
                     os.makedirs(user_dir, exist_ok=True)
 
                     # Remove old avatars
@@ -683,7 +683,7 @@ def send_message_api():
 
 @app.route("/api/message/react", methods=["POST"])
 @login_required
-def react_to_message():
+def react_to_message_api():
     data = request.get_json()
     message_id = data.get("message_id")
     emoji = data.get("emoji")
@@ -717,7 +717,7 @@ def react_to_message():
 
 @app.route('/avatar/<username>')
 def avatar(username):
-    static_dir = os.path.join(STATIC_FOLDER, username)
+    static_dir = os.path.join(PFP_FOLDER, username)
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
         if os.path.isfile(path):
@@ -873,9 +873,10 @@ def notifications():
 @login_required
 def mark_notification_as_read(notification_id):
     notification = Notification.get_by_id(notification_id)
-    if notification and notification.user_id == current_user._id:
-        Notification.mark_as_read(notification_id)
-        return redirect(notification.link)
+    if notification:
+        if notification.user_id == current_user._id:
+            Notification.mark_as_read(notification_id)
+            return redirect(notification.link)
     return redirect(url_for("notifications"))
 
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])

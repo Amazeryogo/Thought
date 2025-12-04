@@ -20,17 +20,10 @@ function formatMessage(msg) {
   avatar.style.height = "40px";
 
   const messageContent = document.createElement("div");
-  messageContent.classList.add("bg-light", "p-2", "rounded", "shadow-sm");
+  messageContent.classList.add("p-2", "rounded", "shadow-sm");
   messageContent.innerHTML = `
     <div class="fw-bold small">${msg.sender}</div>
     <div>${msg.message}</div>
-    <div class="reactions">
-        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '👍')">👍</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '❤️')">❤️</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😂')">😂</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😢')">😢</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😡')">😡</button>
-    </div>
   `;
 
   if (msg.sender === currentUser) {
