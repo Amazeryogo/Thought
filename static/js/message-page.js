@@ -2,8 +2,6 @@
   return CryptoJS.MD5(string).toString();
 }
 
-const username = "{{ username }}";
-const currentUser = "{{ current_user.username }}";
 const chatBox = document.getElementById("chat-box");
 const input = document.getElementById("chatInput");
 

@@ -5,6 +5,21 @@ from werkzeug.security import generate_password_hash
 import re
 from datetime import datetime
 
+from flask import g
+
+@app.before_request
+def before_request():
+    if current_user.is_authenticated:
+        g.unread_notifications = len(list(db.notificationdb.find({"user_id": current_user._id, "read": False})))
+    else:
+        g.unread_notifications = 0
+
+@app.context_processor
+def inject_unread_notifications():
+    if current_user.is_authenticated:
+        return dict(unread_notifications=g.unread_notifications)
+    return dict(unread_notifications=0)
+
 @app.template_filter('render_post_content')
 def render_post_content(post):
     content = ""
@@ -139,12 +154,21 @@ def reply_to_comment(comment_id):
     if content:
         if len(content) <= COMMENT_MAX:
             Comment.create(
-            post_id=parent_comment.post_id,
-            user_id=current_user._id,
-            username=current_user.username,
-            content=content,
-            parent_comment_id=comment_id
-        )
+                post_id=parent_comment.post_id,
+                user_id=current_user._id,
+                username=current_user.username,
+                content=content,
+                parent_comment_id=comment_id
+            )
+
+            parent_comment_user = User.get_by_id(parent_comment.user_id)
+            if parent_comment_user and parent_comment_user.username != current_user.username:
+                Notification.create(
+                    user_id=parent_comment.user_id,
+                    message=f"{current_user.username} replied to your comment",
+                    link=f"/post/{parent_comment.post_id}"
+                )
+
             flash("Reply posted!", "success")
         else:
             flash("comment too large", 'warning')
@@ -571,6 +595,14 @@ def send_message_api():
     if content and len(content) > MESSAGE_MAX:
         return jsonify({"success": False, "error": "Message too long"}), 400
 
+    recipient_user = User.get_by_username(recipient)
+    if recipient_user:
+        Notification.create(
+            user_id=recipient_user._id,
+            message=f"New message from {current_user.username}",
+            link=f"/message/{current_user.username}"
+        )
+
     Messages.send_message(current_user.username, recipient, content, media=media)
     return jsonify({"success": True})
 
@@ -711,6 +743,9 @@ def like_gallery_image(image_id):
         upsert=True
     )
     likes = db.gallery_likes.find_one({"_id": image_id})
+    # Handle the case where the image has no likes or dislikes
+    if likes is None:
+        likes = {}
     return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
 
 @app.route("/gallery/image/<image_id>/dislike", methods=["POST"])
@@ -722,6 +757,9 @@ def dislike_gallery_image(image_id):
         upsert=True
     )
     likes = db.gallery_likes.find_one({"_id": image_id})
+    # Handle the case where the image has no likes or dislikes
+    if likes is None:
+        likes = {}
     return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
 
 @app.route("/gallery/image/<image_id>/counts", methods=["GET"])
@@ -731,6 +769,44 @@ def get_gallery_image_counts(image_id):
     if likes:
         return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
     return jsonify({"success": True, "likes": 0, "dislikes": 0})
+
+@app.route("/gallery/<user>/<filename>")
+def serve_gallery_image(user, filename):
+    return send_from_directory(os.path.join(IMAGED, user), filename)
+
+@app.route("/download_data")
+@login_required
+def download_data():
+    posts = list(db.postdb.find({"user_id": current_user._id}))
+    messages = list(db.messagesdb.find({"$or": [{"sender": current_user.username}, {"receiver": current_user.username}]}))
+
+    image_dir = os.path.join(IMAGED, current_user._id)
+    images = []
+    if os.path.exists(image_dir):
+        images = [f"/gallery/{current_user._id}/{f}" for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+
+    data = {
+        "posts": posts,
+        "messages": messages,
+        "images": images
+    }
+
+    return jsonify(data)
+
+@app.route("/notifications")
+@login_required
+def notifications():
+    notifications = Notification.get_by_user_id(current_user._id)
+    return render_template("notifications.html", notifications=notifications)
+
+@app.route("/notifications/mark_as_read/<notification_id>")
+@login_required
+def mark_notification_as_read(notification_id):
+    notification = Notification.get_by_id(notification_id)
+    if notification:
+        Notification.mark_as_read(notification_id)
+        return redirect(notification.link)
+    return redirect(url_for("notifications"))
 
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required

@@ -426,3 +426,47 @@ class Comment:
             "parent_comment_id": self._id
         }).sort("timestamp", 1)
         return [Comment(**data) for data in reply_data]
+
+class Notification:
+    def __init__(self, user_id, message, link, _id=None, read=False, timestamp=None):
+        self.user_id = user_id
+        self.message = message
+        self.link = link
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.read = read
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "user_id": self.user_id,
+            "message": self.message,
+            "link": self.link,
+            "read": self.read,
+            "timestamp": self.timestamp
+        }
+
+    def save_to_mongo(self):
+        db.notificationdb.insert_one(self.json())
+
+    @classmethod
+    def create(cls, user_id, message, link):
+        new_notification = cls(user_id=user_id, message=message, link=link)
+        new_notification.save_to_mongo()
+        return new_notification
+
+    @classmethod
+    def get_by_user_id(cls, user_id):
+        notifications_data = db.notificationdb.find({"user_id": user_id}).sort("timestamp", -1)
+        return [cls(**data) for data in notifications_data]
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.notificationdb.find_one({"_id": _id})
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def mark_as_read(cls, _id):
+        db.notificationdb.update_one({"_id": _id}, {"$set": {"read": True}})

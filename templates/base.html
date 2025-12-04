@@ -43,6 +43,14 @@
         <a class="nav-link" href="/upload/image"><span class="material-symbols-outlined">photo_camera</span></a>
       </li>
       <li class="nav-item">
+        <a class="nav-link" href="/notifications">
+            <span class="material-symbols-outlined">notifications</span>
+            {% if current_user.is_authenticated and g.unread_notifications > 0 %}
+                <span class="badge badge-danger">{{ g.unread_notifications }}</span>
+            {% endif %}
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" id="theme-toggle"><span class="material-symbols-outlined">brightness_6</span></a>
       </li>
     </ul>

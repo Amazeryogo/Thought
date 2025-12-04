@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">Notifications</h1>
+    <div class="list-group">
+        {% for notification in notifications %}
+            <a href="{{ url_for('mark_notification_as_read', notification_id=notification._id) }}" class="list-group-item list-group-item-action {% if not notification.read %}list-group-item-primary{% endif %}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ notification.message }}</h5>
+                    <small>{{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                </div>
+                <p class="mb-1">Click to mark as read and go to the content.</p>
+            </a>
+        {% else %}
+            <p class="text-center text-muted">No notifications yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
