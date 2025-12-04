@@ -24,6 +24,13 @@ function formatMessage(msg) {
   messageContent.innerHTML = `
     <div class="fw-bold small">${msg.sender}</div>
     <div>${msg.message}</div>
+    <div class="reactions">
+        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '👍')">👍</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '❤️')">❤️</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😂')">😂</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😢')">😢</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="reactToMessage('${msg._id}', '😡')">😡</button>
+    </div>
   `;
 
   if (msg.sender === currentUser) {
@@ -69,6 +76,20 @@ async function sendMessage() {
   } else {
     alert("Failed to send message");
   }
+}
+
+async function reactToMessage(messageId, emoji) {
+    const res = await fetch("/api/message/react", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: messageId, emoji: emoji })
+    });
+
+    if (res.ok) {
+        await fetchMessages();
+    } else {
+        alert("Failed to react to message");
+    }
 }
 
 fetchMessages();

@@ -8,7 +8,7 @@ from flask_mail import Mail
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='CONTENT/STATIC')
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config["MONGO_URI"] = os.environ.get("MONGO_URI")
 mongo = PyMongo(app)
@@ -27,7 +27,8 @@ app.config['FAVICON'] = 'favicon.ico'
 app.config['JWT_SECRET'] = os.environ.get("JWT_SECRET", SECRET_KEY)
 app.config['JWT_ALGORITHM'] = "HS256"
 app.config['JWT_EXP_DELTA_SECONDS'] = 3600
-IMAGED = os.environ.get("IMAGES_PATH")
+CONTENT_PATH = os.environ.get("CONTENT_PATH", "CONTENT")
+IMAGED = os.path.join(CONTENT_PATH, "IMAGES")
 COMMENT_MAX =2000
 POST_MAX = 5000
 ABOUT_ME_MAX = 50
@@ -35,4 +36,3 @@ PASSWORD_MAX = 12
 MESSAGE_MAX = 100
 USERNAME_MAX = 12
 USERNAME_MIN = 2
-STATIC_FOLDER = "bluh"

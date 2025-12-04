@@ -51,6 +51,33 @@ def load_user(user_id):
 
 
 
+import requests
+
+@app.route('/weather')
+@login_required
+def weather():
+    if not current_user.city:
+        return jsonify({"success": False, "error": "City not set"})
+
+    try:
+        # Get coordinates for the city
+        url = f"https://geocode.maps.co/search?q={current_user.city}"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        if not data:
+            return jsonify({"success": False, "error": "City not found"})
+        lat = data[0]['lat']
+        lon = data[0]['lon']
+
+        # Get weather for the coordinates
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        response = requests.get(url, timeout=5)
+        weather_data = response.json()
+        weather_data['city'] = current_user.city
+        return jsonify({"success": True, "weather": weather_data})
+    except requests.exceptions.RequestException:
+        return jsonify({"success": False, "error": "Failed to fetch weather"})
+
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
 def home():
@@ -64,6 +91,7 @@ def home():
         for i in posts:
             i['content'] = markdown.markdown(i['content'])
             p2.append(i)
+
         return render_template('home.html', posts=p2)
     else:
         return render_template('index.html')
@@ -111,6 +139,15 @@ def post_view(post_id):
                 username=current_user.username,
                 content=form.content.data
             )
+
+            post_user = User.get_by_id(post.user_id)
+            if post_user and post_user.username != current_user.username:
+                Notification.create(
+                    user_id=post.user_id,
+                    message=f"{current_user.username} commented on your post",
+                    link=f"/post/{post_id}"
+                )
+
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
@@ -445,14 +482,17 @@ def settings():
     if request.method == "GET":
         form.content.data = User.get_aboutme(current_user.username)
         form.email.data = current_user.email
+        form.city.data = current_user.city
 
     if form.validate_on_submit():
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
+        city = form.city.data.strip()
 
         if len(aboutme) <= ABOUT_ME_MAX:
             User.addaboutme(current_user.username, aboutme)
             User.change_email(current_user.username, email)
+            User.change_city(current_user.username, city)
 
             file = request.files.get("pfp")
             if file:
@@ -580,6 +620,40 @@ def save_theme():
         session['theme'] = theme
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Invalid theme'}), 400
+
+@app.route("/api/message/react", methods=["POST"])
+@login_required
+def react_to_message():
+    data = request.get_json()
+    message_id = data.get("message_id")
+    emoji = data.get("emoji")
+
+    if not message_id or not emoji:
+        return jsonify({"success": False, "error": "Missing data"}), 400
+
+    message = db.messagesdb.find_one({"_id": message_id})
+    if not message:
+        return jsonify({"success": False, "error": "Message not found"}), 404
+
+    reactions = message.get("reactions", {})
+
+    if emoji not in reactions:
+        reactions[emoji] = []
+
+    # Toggle the user's reaction
+    if current_user.username in reactions[emoji]:
+        reactions[emoji].remove(current_user.username)
+        if not reactions[emoji]:
+            del reactions[emoji]
+    else:
+        reactions[emoji].append(current_user.username)
+
+    db.messagesdb.update_one(
+        {"_id": message_id},
+        {"$set": {"reactions": reactions}}
+    )
+
+    return jsonify({"success": True, "reactions": reactions})
 
 @app.route("/api/send_message", methods=["POST"])
 @login_required
@@ -728,7 +802,9 @@ def get_following(username):
 @app.route("/gallery/image/<image_id>/delete", methods=["POST"])
 @login_required
 def delete_gallery_image(image_id):
-    image_path = os.path.join(IMAGED, current_user._id, image_id)
+    # Sanitize the filename to prevent path traversal attacks
+    filename = secure_filename(image_id)
+    image_path = os.path.join(IMAGED, current_user._id, filename)
     if os.path.exists(image_path):
         os.remove(image_path)
         return jsonify({"success": True})
@@ -742,11 +818,7 @@ def like_gallery_image(image_id):
         {"$addToSet": {"likes": current_user.username}, "$pull": {"dislikes": current_user.username}},
         upsert=True
     )
-    likes = db.gallery_likes.find_one({"_id": image_id})
-    # Handle the case where the image has no likes or dislikes
-    if likes is None:
-        likes = {}
-    return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
+    return get_gallery_image_counts(image_id)
 
 @app.route("/gallery/image/<image_id>/dislike", methods=["POST"])
 @login_required
@@ -756,11 +828,7 @@ def dislike_gallery_image(image_id):
         {"$addToSet": {"dislikes": current_user.username}, "$pull": {"likes": current_user.username}},
         upsert=True
     )
-    likes = db.gallery_likes.find_one({"_id": image_id})
-    # Handle the case where the image has no likes or dislikes
-    if likes is None:
-        likes = {}
-    return jsonify({"success": True, "likes": len(likes.get("likes", [])), "dislikes": len(likes.get("dislikes", []))})
+    return get_gallery_image_counts(image_id)
 
 @app.route("/gallery/image/<image_id>/counts", methods=["GET"])
 @login_required
@@ -791,7 +859,9 @@ def download_data():
         "images": images
     }
 
-    return jsonify(data)
+    response = jsonify(data)
+    response.headers['Content-Disposition'] = 'attachment; filename=data.json'
+    return response
 
 @app.route("/notifications")
 @login_required
@@ -803,7 +873,7 @@ def notifications():
 @login_required
 def mark_notification_as_read(notification_id):
     notification = Notification.get_by_id(notification_id)
-    if notification:
+    if notification and notification.user_id == current_user._id:
         Notification.mark_as_read(notification_id)
         return redirect(notification.link)
     return redirect(url_for("notifications"))

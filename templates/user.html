@@ -90,9 +90,9 @@
             <div class="card border-0 shadow-sm gallery-item" style="cursor: pointer;"
                  data-toggle="modal"
                  data-target="#galleryModal"
-                 data-image-url="{{ url_for('render_image', userid=user._id, imageuid=img) }}"
+                 data-image-url="{{ url_for('serve_gallery_image', user=user._id, filename=img) }}"
                  data-image-id="{{ img }}">
-                <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
+                <img src="{{ url_for('serve_gallery_image', user=user._id, filename=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
             </div>
         </div>
         {% endfor %}

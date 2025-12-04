@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, city=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -17,6 +17,7 @@ class User(UserMixin):
             self.aboutme = aboutme
 
         self.username = username
+        self.city = city
         self.email = email
         self.password = password
         self.invcode = invcode
@@ -24,8 +25,13 @@ class User(UserMixin):
         self.posts = db.postdb.find({"user_id": self._id})
         self.last_seen = last_seen
         try:
-            self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
-            self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
+            user_data = db.userdb.find_one({"_id": self._id})
+            if user_data:
+                self.followers = user_data.get("followers", [])
+                self.following = user_data.get("following", [])
+            else:
+                self.followers = []
+                self.following = []
         except:
             self.followers = []
             self.following = []
@@ -83,6 +89,10 @@ class User(UserMixin):
         else:
             return False
 
+    @classmethod
+    def change_city(cls, username, city):
+        db.userdb.update_one({"username": username}, {"$set": {"city": city}})
+
     @staticmethod
     def login_valid(username, password):
         verify_user = User.get_by_username(username)
@@ -112,7 +122,8 @@ class User(UserMixin):
             "password": self.password,
             "followers": self.followers,
             "following": self.following,
-            "last_seen": self.last_seen
+            "last_seen": self.last_seen,
+            "city": self.city
         }
 
     @classmethod
@@ -214,19 +225,12 @@ class Messages:
 
     @classmethod
     def get_users(self):
-        users = []
-        for i in db.messagesdb.find():
-            if i['sender'] == current_user.username:
-                if i['receiver'] not in users:
-                    users.append(i['receiver'])
-                else:
-                    pass
-            elif i['receiver'] == current_user.username:
-                if i['sender'] not in users:
-                    users.append(i['sender'])
-                else:
-                    pass
-        return users
+        users = set()
+        for i in db.messagesdb.find({"$or": [{"sender": current_user.username}, {"receiver": current_user.username}]}):
+            users.add(i['sender'])
+            users.add(i['receiver'])
+        users.discard(current_user.username)
+        return list(users)
 
     def save_to_mongo(self):
         db.messagesdb.insert_one({

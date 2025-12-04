@@ -37,68 +37,61 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Gallery Modal Logic
-    const galleryModal = document.getElementById('galleryModal');
-    galleryModal.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
-        const imageUrl = button.getAttribute('data-image-url');
-        const imageId = button.getAttribute('data-image-id');
+    $('#galleryModal').on('show.bs.modal', function (event) {
+        const button = $(event.relatedTarget);
+        const imageUrl = button.data('image-url');
+        const imageId = button.data('image-id');
 
-        const modalImage = galleryModal.querySelector('#galleryModalImage');
-        const downloadButton = galleryModal.querySelector('#downloadButton');
-        const deleteButton = galleryModal.querySelector('#deleteImageButton');
-        const likeButton = galleryModal.querySelector('#likeButton');
-        const dislikeButton = galleryModal.querySelector('#dislikeButton');
-        const likeCount = galleryModal.querySelector('#likeCount');
-        const dislikeCount = galleryModal.querySelector('#dislikeCount');
+        const modal = $(this);
+        modal.find('#galleryModalImage').attr('src', imageUrl);
+        modal.find('#downloadButton').attr('href', imageUrl);
 
-        modalImage.src = imageUrl;
-        downloadButton.href = imageUrl;
+        const likeCount = modal.find('#likeCount');
+        const dislikeCount = modal.find('#dislikeCount');
 
         // Fetch initial like/dislike counts
         fetch(`/gallery/image/${imageId}/counts`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    likeCount.textContent = data.likes;
-                    dislikeCount.textContent = data.dislikes;
+                    likeCount.text(data.likes);
+                    dislikeCount.text(data.dislikes);
                 }
             });
 
-        if (deleteButton) {
-            deleteButton.onclick = function() {
-                fetch(`/gallery/image/${imageId}/delete`, { method: 'POST' })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert(data.message || 'Could not delete image.');
-                        }
-                    });
-            };
-        }
+        modal.find('#deleteImageButton').off('click').on('click', function() {
+            fetch(`/gallery/image/${imageId}/delete`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Could not delete image.');
+                    }
+                });
+        });
 
-        likeButton.onclick = function() {
+        modal.find('#likeButton').off('click').on('click', function() {
             fetch(`/gallery/image/${imageId}/like`, { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        likeCount.textContent = data.likes;
-                        dislikeCount.textContent = data.dislikes;
+                        likeCount.text(data.likes);
+                        dislikeCount.text(data.dislikes);
                     }
                 });
-        };
+        });
 
-        dislikeButton.onclick = function() {
+        modal.find('#dislikeButton').off('click').on('click', function() {
             fetch(`/gallery/image/${imageId}/dislike`, { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        likeCount.textContent = data.likes;
-                        dislikeCount.textContent = data.dislikes;
+                        likeCount.text(data.likes);
+                        dislikeCount.text(data.dislikes);
                     }
                 });
-        };
+        });
     });
 });
 

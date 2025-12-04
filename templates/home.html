@@ -1,7 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
+    <div id="weather-container"></div>
+
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}
+
+    <script>
+        $(document).ready(function() {
+            $.ajax({
+                url: "/weather",
+                success: function(data) {
+                    if (data.success) {
+                        const weather = data.weather;
+                        const html = `
+                            <div class="card mt-4">
+                                <div class="card-body">
+                                    <h5 class="card-title">Weather in ${weather.city}</h5>
+                                    <p class="card-text">
+                                        Temperature: ${weather.current_weather.temperature}°C<br>
+                                        Windspeed: ${weather.current_weather.windspeed} km/h
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                        $("#weather-container").html(html);
+                    }
+                },
+                error: function() {
+                    $("#weather-container").html("<p>Could not load weather data.</p>");
+                }
+            });
+        });
+    </script>
 {% endblock %}
