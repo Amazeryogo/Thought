@@ -5,3 +5,4 @@ CONTENT/IMAGES/
 CONTENT/bluh/
 secretkey.txt
 *.log
+venv/
