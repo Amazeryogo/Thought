@@ -475,6 +475,49 @@ def x404():
     return render_template('errors/404.html')
 
 
+@app.route('/git_help.txt')
+def git_help():
+    help_text = """Thought Git Hosting Help
+========================
+
+Accessing your repositories:
+----------------------------
+Your repositories are accessible via HTTP. The clone URL format is:
+http://<host>/git/<username>/<reponame>.git
+
+Authentication:
+---------------
+When prompted for a username and password:
+- Username: Your Thought username
+- Password: Your Git Access Token (Found in your Thought Settings)
+
+Creating a new repository on Thought:
+-------------------------------------
+1. Go to your Repositories page and click "New Repository".
+2. Enter a name and description.
+
+Pushing local code to Thought:
+------------------------------
+
+For a new local project:
+    git init
+    git add .
+    git commit -m "Initial commit"
+    git remote add origin http://<host>/git/<username>/<reponame>.git
+    git push -u origin master
+
+For an existing local repository:
+    git remote add thought http://<host>/git/<username>/<reponame>.git
+    git push -u thought master
+
+Browsing and Editing:
+---------------------
+You can browse your files and branches, and even edit files directly in the web interface
+by clicking the "Edit" button when viewing a file.
+"""
+    return Response(help_text, mimetype='text/plain')
+
+
 @app.route('/logout', methods=['GET', 'POST'])
 def logout():
     logout_user()
