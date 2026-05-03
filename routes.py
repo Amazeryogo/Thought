@@ -738,13 +738,56 @@ def create_repo():
 
 
 @app.route("/repo/<username>/<reponame>")
+@app.route("/repo/<username>/<reponame>/tree/<ref>/")
+@app.route("/repo/<username>/<reponame>/tree/<ref>/<path:path>")
 @login_required
-def repo_view(username, reponame):
+def repo_view(username, reponame, ref=None, path=""):
     repo = Repository.get_by_owner_and_name(username, reponame)
     if not repo:
         abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    if not ref:
+        ref = get_git_default_branch(repo_dir)
+
+    entries = list_git_tree(repo_dir, ref, path)
     clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
-    return render_template("repo_view.html", repo=repo, clone_url=clone_url)
+
+    return render_template(
+        "repo_view.html",
+        repo=repo,
+        clone_url=clone_url,
+        entries=entries,
+        ref=ref,
+        path=path
+    )
+
+
+@app.route("/repo/<username>/<reponame>/blob/<ref>/<path:path>")
+@login_required
+def repo_blob(username, reponame, ref, path):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    blob_content = get_git_blob(repo_dir, ref, path)
+
+    if blob_content is None:
+        abort(404)
+
+    try:
+        content = blob_content.decode("utf-8")
+    except UnicodeDecodeError:
+        content = "[Binary content]"
+
+    return render_template(
+        "repo_blob.html",
+        repo=repo,
+        ref=ref,
+        path=path,
+        content=content
+    )
 
 
 @app.route("/repo/delete/<repo_id>", methods=["POST"])
@@ -765,6 +808,66 @@ def delete_repo(repo_id):
 
 
 @app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
+def get_git_default_branch(repo_dir):
+    try:
+        result = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return "master" # Fallback
+
+
+def list_git_tree(repo_dir, ref, path=""):
+    try:
+        # Use ref:path syntax
+        tree_ref = f"{ref}:{path}" if path else ref
+        result = subprocess.run(
+            ["git", "ls-tree", "-l", tree_ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = result.stdout.strip().splitlines()
+        entries = []
+        for line in lines:
+            # Format: <mode> <type> <object> <size>    <file>
+            parts = line.split(None, 4)
+            if len(parts) < 5:
+                continue
+            entry = {
+                "mode": parts[0],
+                "type": parts[1],
+                "object": parts[2],
+                "size": parts[3],
+                "name": parts[4]
+            }
+            entries.append(entry)
+        # Sort: directories first, then files
+        entries.sort(key=lambda x: (x["type"] != "tree", x["name"]))
+        return entries
+    except subprocess.CalledProcessError:
+        return []
+
+
+def get_git_blob(repo_dir, ref, path):
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-p", f"{ref}:{path}"],
+            cwd=repo_dir,
+            capture_output=True,
+            check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError:
+        return None
+
+
 def git_backend(username, reponame, rest):
     repo = Repository.get_by_owner_and_name(username, reponame)
     if not repo:
