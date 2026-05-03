@@ -4,7 +4,6 @@ import markdown
 from itsdangerous import URLSafeTimedSerializer as Serializer
 from flask_mail import Message as FlaskMessage
 from core import app, mail
-from hashlib import md5
 import uuid
 import re
 from datetime import datetime as bruh

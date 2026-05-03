@@ -475,47 +475,10 @@ def x404():
     return render_template('errors/404.html')
 
 
-@app.route('/git_help.txt')
+@app.route('/git_help')
 def git_help():
-    help_text = """Thought Git Hosting Help
-========================
-
-Accessing your repositories:
-----------------------------
-Your repositories are accessible via HTTP. The clone URL format is:
-http://<host>/git/<username>/<reponame>.git
-
-Authentication:
----------------
-When prompted for a username and password:
-- Username: Your Thought username
-- Password: Your Git Access Token (Found in your Thought Settings)
-
-Creating a new repository on Thought:
--------------------------------------
-1. Go to your Repositories page and click "New Repository".
-2. Enter a name and description.
-
-Pushing local code to Thought:
-------------------------------
-
-For a new local project:
-    git init
-    git add .
-    git commit -m "Initial commit"
-    git remote add origin http://<host>/git/<username>/<reponame>.git
-    git push -u origin master
-
-For an existing local repository:
-    git remote add thought http://<host>/git/<username>/<reponame>.git
-    git push -u thought master
-
-Browsing and Editing:
----------------------
-You can browse your files and branches, and even edit files directly in the web interface
-by clicking the "Edit" button when viewing a file.
-"""
-    return Response(help_text, mimetype='text/plain')
+    path = "git_help.txt"
+    return send_file(path, as_attachment=True)
 
 
 @app.route('/logout', methods=['GET', 'POST'])
@@ -799,8 +762,6 @@ def repo_view(username, reponame, ref=None, path=""):
         ref = get_git_default_branch(repo_dir)
 
     entries = list_git_tree(repo_dir, ref, path)
-
-    # Get all branches for selector
     try:
         branches = subprocess.run(
             ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
@@ -808,14 +769,11 @@ def repo_view(username, reponame, ref=None, path=""):
         ).stdout.strip().splitlines()
     except:
         branches = []
-
-    # Check if the ref actually exists/has history
     check = subprocess.run(["git", "rev-parse", "--verify", ref],
                           cwd=repo_dir, capture_output=True)
     ref_exists = (check.returncode == 0)
 
     clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
-
     return render_template(
         "repo_view.html",
         repo=repo,

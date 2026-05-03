@@ -11,3 +11,4 @@ markdown
 flask-socketio
 pyjwt
 Flask-Mail
+email-validator
