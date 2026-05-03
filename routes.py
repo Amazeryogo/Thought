@@ -988,7 +988,15 @@ def get_git_blob(repo_dir, ref, path):
 
 @app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
 def git_backend(username, reponame, rest):
+    # Try case-insensitive name if exact match fails
     repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        all_repos = Repository.find_by_owner(username)
+        for r in all_repos:
+            if r.name.lower() == reponame.lower():
+                repo = r
+                reponame = r.name # Use the canonical name
+                break
     if not repo:
         abort(404)
 

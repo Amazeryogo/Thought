@@ -49,7 +49,10 @@ class User(UserMixin):
     def get_by_username(cls, username):
         data = db.userdb.find_one({"username": username})
         if data is not None:
-            return cls(**data)
+            user = cls(**data)
+            if "git_token" not in data:
+                db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
+            return user
 
     @classmethod
     def addaboutme(cls, username, aboutme):
@@ -73,7 +76,10 @@ class User(UserMixin):
     def get_by_id(cls, _id):
         data = db.userdb.find_one({"_id": _id})
         if data is not None:
-            return cls(**data)
+            user = cls(**data)
+            if "git_token" not in data:
+                db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
+            return user
 
     @classmethod
     def change_email(cls, username, email):
