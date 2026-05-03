@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        {% if not path %}
+            <li class="breadcrumb-item active" aria-current="page">{{ repo.name }}</li>
+        {% else %}
+            <li class="breadcrumb-item"><a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name) }}">{{ repo.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ path }}</li>
+        {% endif %}
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="card-title mb-0" style="font-family: 'Abril Fatface', cursive;">{{ repo.name }}</h1>
+                    <div class="mt-2 d-flex align-items-center">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" type="button" id="branchDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="material-symbols-outlined mr-1" style="font-size: 1rem;">call_split</span> {{ ref }}
+                            </button>
+                            <div class="dropdown-menu" aria-labelledby="branchDropdown">
+                                <h6 class="dropdown-header">Branches</h6>
+                                {% for branch in branches %}
+                                    <a class="dropdown-item {% if branch == ref %}active{% endif %}" href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name, ref=branch) }}">{{ branch }}</a>
+                                {% endfor %}
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="{{ url_for('repo_branches', username=repo.owner, reponame=repo.name) }}">View all branches</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle d-flex align-items-center" type="button" id="downloadDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="material-symbols-outlined mr-2">download</span> Code
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right p-4" aria-labelledby="downloadDropdown" style="min-width: 400px;">
+                        <h6>Clone with HTTP</h6>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control bg-light" id="cloneUrl" value="{{ clone_url }}" readonly>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyCloneUrl(event)">
+                                    <span class="material-symbols-outlined" style="font-size: 1.2rem;">content_copy</span>
+                                </button>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6>Quick Setup</h6>
+                        <pre class="bg-dark text-light p-3 rounded mb-0" style="font-size: 0.8rem;">
+echo "# {{ repo.name }}" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin {{ clone_url }}
+git push -u origin main</pre>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-muted mb-4">{{ repo.description }}</p>
+
+            {% if not path and not ref_exists %}
+            <div class="alert alert-info mt-4">
+                <p class="mb-1"><strong>Quick setup:</strong></p>
+                <pre class="bg-dark text-light p-3 rounded">
+
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin {{ clone_url }}
+git push -u origin main</pre>
+            </div>
+            {% endif %}
+
+            <div class="table-responsive border rounded">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if path %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name, ref=ref, path='/'.join(path.split('/')[:-1])) }}">
+                                    <span class="material-symbols-outlined align-middle mr-2">folder_open</span> ..
+                                </a>
+                            </td>
+                            <td>-</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if entries %}
+                            {% for entry in entries %}
+                            <tr>
+                                <td>
+                                    {% if entry.type == 'tree' %}
+                                        <a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name, ref=ref, path=(path + '/' + entry.name if path else entry.name)) }}">
+                                            <span class="material-symbols-outlined align-middle mr-2">folder</span> {{ entry.name }}
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ url_for('repo_blob', username=repo.owner, reponame=repo.name, ref=ref, path=(path + '/' + entry.name if path else entry.name)) }}">
+                                            <span class="material-symbols-outlined align-middle mr-2">description</span> {{ entry.name }}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>{{ entry.size if entry.type != 'tree' else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="2" class="text-center text-muted py-4">
+                                    {% if not path %}
+                                        {% if not ref_exists %}
+                                            Repository is empty. Push some code to get started!
+                                        {% else %}
+                                            No files found in this branch.
+                                        {% endif %}
+                                    {% else %}
+                                        This directory is empty.
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyCloneUrl(e) {
+    e.stopPropagation();
+    var copyText = document.getElementById("cloneUrl");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(copyText.value);
+    alert("Copied clone URL to clipboard!");
+}
+</script>
+{% endblock %}

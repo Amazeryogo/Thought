@@ -1,8 +1,12 @@
+import os
 from models import *
 from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+import subprocess
+import shutil
+import base64
 from datetime import datetime
 
 @app.template_filter('render_post_content')
@@ -23,7 +27,12 @@ def render_post_content(post):
                 media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
             else:
                 media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="Post Image">'
-            content = content.replace(placeholder, media_tag)
+
+            if placeholder in content:
+                content = content.replace(placeholder, media_tag)
+            else:
+                # If placeholder not in content, append image to the end
+                content += "\n\n" + media_tag
 
     # Remove any remaining placeholders that don't have a corresponding image
     content = re.sub(r'\[image\d+\]', '', content)
@@ -466,6 +475,12 @@ def x404():
     return render_template('errors/404.html')
 
 
+@app.route('/git_help')
+def git_help():
+    path = "git_help.txt"
+    return send_file(path, as_attachment=True)
+
+
 @app.route('/logout', methods=['GET', 'POST'])
 def logout():
     logout_user()
@@ -685,6 +700,411 @@ def get_following(username):
         "type": "following",
         "users": user.get("following", [])
     })
+
+
+@app.route("/repos/<username>")
+@login_required
+def user_repos(username):
+    user = User.get_by_username(username)
+    if not user:
+        abort(404)
+    repos = Repository.find_by_owner(username)
+    return render_template("repos.html", user=user, repos=repos)
+
+
+@app.route("/repo/create", methods=["GET", "POST"])
+@login_required
+def create_repo():
+    form = RepositoryForm()
+    if form.validate_on_submit():
+        name = secure_filename(form.name.data)
+        if not name:
+            flash("Invalid repository name.", "danger")
+            return render_template("create_repo.html", form=form)
+
+        existing = Repository.get_by_owner_and_name(current_user.username, name)
+        if existing:
+            flash("You already have a repository with that name.", "danger")
+            return render_template("create_repo.html", form=form)
+
+        repo_dir = os.path.join(REPOS_PATH, current_user.username, f"{name}.git")
+        if os.path.exists(repo_dir):
+            shutil.rmtree(repo_dir)
+
+        os.makedirs(repo_dir, exist_ok=True)
+        try:
+            subprocess.run(["git", "init", "--bare"], cwd=repo_dir, check=True)
+            # Enable git-http-backend
+            subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo_dir, check=True)
+
+            new_repo = Repository(name=name, owner=current_user.username, description=form.description.data)
+            new_repo.save_to_mongo()
+            flash(f"Repository {name} created successfully!", "success")
+            return redirect(url_for("repo_view", username=current_user.username, reponame=name))
+        except subprocess.CalledProcessError:
+            flash("Error initializing repository.", "danger")
+            return render_template("create_repo.html", form=form)
+
+    return render_template("create_repo.html", form=form)
+
+
+@app.route("/repo/<username>/<reponame>")
+@app.route("/repo/<username>/<reponame>/tree/<ref>/")
+@app.route("/repo/<username>/<reponame>/tree/<ref>/<path:path>")
+@login_required
+def repo_view(username, reponame, ref=None, path=""):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    if not ref:
+        ref = get_git_default_branch(repo_dir)
+
+    entries = list_git_tree(repo_dir, ref, path)
+    try:
+        branches = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+            cwd=repo_dir, capture_output=True, text=True
+        ).stdout.strip().splitlines()
+    except:
+        branches = []
+    check = subprocess.run(["git", "rev-parse", "--verify", ref],
+                          cwd=repo_dir, capture_output=True)
+    ref_exists = (check.returncode == 0)
+
+    clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
+    return render_template(
+        "repo_view.html",
+        repo=repo,
+        clone_url=clone_url,
+        entries=entries,
+        ref=ref,
+        path=path,
+        ref_exists=ref_exists,
+        branches=branches
+    )
+
+
+@app.route("/repo/<username>/<reponame>/branches")
+@login_required
+def repo_branches(username, reponame):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    try:
+        result = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short) %(authordate:relative) %(subject)", "refs/heads/"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        branches = []
+        for line in result.stdout.strip().splitlines():
+            parts = line.split(None, 2)
+            if len(parts) >= 1:
+                branches.append({
+                    "name": parts[0],
+                    "date": parts[1] if len(parts) >= 2 else "",
+                    "message": parts[2] if len(parts) >= 3 else ""
+                })
+    except subprocess.CalledProcessError:
+        branches = []
+
+    return render_template("repo_branches.html", repo=repo, branches=branches)
+
+
+@app.route("/repo/<username>/<reponame>/blob/<ref>/<path:path>")
+@login_required
+def repo_blob(username, reponame, ref, path):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    blob_content = get_git_blob(repo_dir, ref, path)
+
+    if blob_content is None:
+        abort(404)
+
+    try:
+        content = blob_content.decode("utf-8")
+    except UnicodeDecodeError:
+        content = "[Binary content]"
+
+    return render_template(
+        "repo_blob.html",
+        repo=repo,
+        ref=ref,
+        path=path,
+        content=content
+    )
+
+
+@app.route("/repo/<username>/<reponame>/edit/<ref>/<path:path>", methods=["GET", "POST"])
+@login_required
+def repo_edit(username, reponame, ref, path):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo or repo.owner != current_user.username:
+        flash("Unauthorized or repository not found.", "danger")
+        return redirect(url_for('repo_view', username=username, reponame=reponame))
+
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+
+    if request.method == "POST":
+        new_path = request.form.get("path", path)
+        new_content = request.form.get("content", "")
+
+        try:
+            # We use a temporary index to create a commit without a working directory
+            env = os.environ.copy()
+            index_file = os.path.join(repo_dir, f"temp_index_{uuid.uuid4().hex}")
+            env["GIT_INDEX_FILE"] = index_file
+
+            # 1. Read existing tree into index
+            subprocess.run(["git", "read-tree", ref], cwd=repo_dir, env=env, check=True)
+
+            # 2. Hash the new content into a blob
+            result = subprocess.run(["git", "hash-object", "-w", "--stdin"],
+                                   cwd=repo_dir, env=env, input=new_content.encode("utf-8"),
+                                   capture_output=True, check=True)
+            blob_hash = result.stdout.decode("utf-8").strip()
+
+            # 3. Update index with the new blob at the new path
+            # Remove old path if it changed
+            if new_path != path:
+                subprocess.run(["git", "rm", "--cached", "--ignore-unmatch", path],
+                               cwd=repo_dir, env=env, check=True)
+
+            subprocess.run(["git", "update-index", "--add", "--cacheinfo", "100644", blob_hash, new_path],
+                           cwd=repo_dir, env=env, check=True)
+
+            # 4. Write tree
+            result = subprocess.run(["git", "write-tree"], cwd=repo_dir, env=env, capture_output=True, check=True)
+            tree_hash = result.stdout.decode("utf-8").strip()
+
+            # 5. Create commit
+            parent_commit = subprocess.run(["git", "rev-parse", ref],
+                                         cwd=repo_dir, env=env, capture_output=True, check=True).stdout.decode("utf-8").strip()
+
+            commit_msg = f"Update {new_path}"
+            result = subprocess.run(["git", "commit-tree", tree_hash, "-p", parent_commit, "-m", commit_msg],
+                                   cwd=repo_dir, env=env, capture_output=True, check=True)
+            new_commit_hash = result.stdout.decode("utf-8").strip()
+
+            # 6. Update ref
+            subprocess.run(["git", "update-ref", f"refs/heads/{ref}", new_commit_hash], cwd=repo_dir, env=env, check=True)
+
+            if os.path.exists(index_file):
+                os.remove(index_file)
+
+            flash(f"File {new_path} updated successfully!", "success")
+            return redirect(url_for('repo_blob', username=username, reponame=reponame, ref=ref, path=new_path))
+
+        except subprocess.CalledProcessError as e:
+            flash(f"Error committing changes: {e.stderr.decode('utf-8') if e.stderr else str(e)}", "danger")
+            if 'index_file' in locals() and os.path.exists(index_file):
+                os.remove(index_file)
+
+    blob_content = get_git_blob(repo_dir, ref, path)
+    if blob_content is None:
+        abort(404)
+
+    try:
+        content = blob_content.decode("utf-8")
+    except UnicodeDecodeError:
+        content = "[Binary content]"
+
+    return render_template(
+        "repo_edit.html",
+        repo=repo,
+        ref=ref,
+        path=path,
+        content=content
+    )
+
+
+@app.route("/repo/delete/<repo_id>", methods=["POST"])
+@login_required
+def delete_repo(repo_id):
+    repo = Repository.get_by_id(repo_id)
+    if not repo or repo.owner != current_user.username:
+        flash("Unauthorized or repository not found.", "danger")
+        return redirect(url_for("user_repos", username=current_user.username))
+
+    repo_dir = os.path.join(REPOS_PATH, repo.owner, f"{repo.name}.git")
+    if os.path.exists(repo_dir):
+        shutil.rmtree(repo_dir)
+
+    db.reposdb.delete_one({"_id": repo_id})
+    flash(f"Repository {repo.name} deleted.", "success")
+    return redirect(url_for("user_repos", username=current_user.username))
+
+
+def get_git_default_branch(repo_dir):
+    try:
+        # Check symbolic-ref first
+        result = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        branch = result.stdout.strip()
+        # Verify if branch has any commits
+        check = subprocess.run(["git", "rev-parse", "--verify", branch],
+                              cwd=repo_dir, capture_output=True)
+        if check.returncode == 0:
+            return branch
+
+        # If HEAD's branch is unborn, try to find any other branch
+        branches = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True
+        ).stdout.strip().splitlines()
+
+        if branches:
+            return branches[0]
+
+        return branch # Fallback to unborn branch name
+    except subprocess.CalledProcessError:
+        return "master"
+
+
+def list_git_tree(repo_dir, ref, path=""):
+    try:
+        # Use ref:path syntax
+        tree_ref = f"{ref}:{path}" if path else ref
+        result = subprocess.run(
+            ["git", "ls-tree", "-l", tree_ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = result.stdout.strip().splitlines()
+        entries = []
+        for line in lines:
+            # Format: <mode> <type> <object> <size>    <file>
+            parts = line.split(None, 4)
+            if len(parts) < 5:
+                continue
+            entry = {
+                "mode": parts[0],
+                "type": parts[1],
+                "object": parts[2],
+                "size": parts[3],
+                "name": parts[4]
+            }
+            entries.append(entry)
+        # Sort: directories first, then files
+        entries.sort(key=lambda x: (x["type"] != "tree", x["name"]))
+        return entries
+    except subprocess.CalledProcessError:
+        return []
+
+
+def get_git_blob(repo_dir, ref, path):
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-p", f"{ref}:{path}"],
+            cwd=repo_dir,
+            capture_output=True,
+            check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError:
+        return None
+
+
+@app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
+def git_backend(username, reponame, rest):
+    # Fetch repository (now case-insensitive)
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    # Use canonical names
+    username = repo.owner
+    reponame = repo.name
+
+    # Simple Basic Auth for push operations using git_token
+    auth = request.authorization
+    authenticated_user = None
+    if auth:
+        user = User.get_by_username(auth.username)
+        if user and user.git_token == auth.password:
+            authenticated_user = user
+
+    # Git protocol detection
+    is_push = (rest == "git-receive-pack" or
+               (rest == "info/refs" and request.args.get("service") == "git-receive-pack"))
+
+    if is_push:
+        if not authenticated_user or authenticated_user.username.lower() != username.lower():
+            return Response("Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="Git Login"'})
+
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+
+    env = os.environ.copy()
+    env["GIT_PROJECT_ROOT"] = os.path.dirname(repo_dir)
+    env["GIT_HTTP_EXPORT_ALL"] = "1"
+    env["PATH_INFO"] = f"/{reponame}.git/{rest}"
+    env["REMOTE_USER"] = authenticated_user.username if authenticated_user else "anonymous"
+    env["REQUEST_METHOD"] = request.method
+    env["QUERY_STRING"] = request.query_string.decode("utf-8")
+    env["CONTENT_TYPE"] = request.content_type if request.content_type else ""
+    env["REMOTE_ADDR"] = request.remote_addr
+    env["SERVER_PROTOCOL"] = request.environ.get("SERVER_PROTOCOL", "HTTP/1.1")
+
+    backend_path = "/usr/lib/git-core/git-http-backend"
+
+    process = subprocess.Popen(
+        [backend_path],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    stdout, stderr = process.communicate(input=request.data)
+
+    if process.returncode != 0:
+        return Response(stderr, 500)
+
+    # git-http-backend returns HTTP headers followed by the body
+    header_end = stdout.find(b"\r\n\r\n")
+    if header_end == -1:
+        header_end = stdout.find(b"\n\n")
+        body_start = header_end + 2
+    else:
+        body_start = header_end + 4
+
+    headers_raw = stdout[:header_end].decode("utf-8")
+    body = stdout[body_start:]
+
+    response_headers = []
+    status_code = 200
+    for line in headers_raw.splitlines():
+        if line.startswith("Status: "):
+            try:
+                status_code = int(line.split(" ")[1])
+            except (IndexError, ValueError):
+                pass
+        elif ":" in line:
+            key, value = line.split(":", 1)
+            # Avoid duplicate Content-Length or Transfer-Encoding if Flask handles them
+            if key.strip().lower() not in ["content-length", "transfer-encoding", "connection"]:
+                response_headers.append((key.strip(), value.strip()))
+
+    return Response(body, status_code, response_headers)
+
 
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required

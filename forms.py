@@ -49,3 +49,9 @@ class CommentForm(FlaskForm):
 class MessageForm(FlaskForm):
     message = TextAreaField('Message', validators=[DataRequired()])
     submit = SubmitField('send')
+
+
+class RepositoryForm(FlaskForm):
+    name = StringField('Repository Name', validators=[DataRequired()])
+    description = TextAreaField('Description')
+    submit = SubmitField('Create Repository')

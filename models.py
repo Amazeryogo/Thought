@@ -4,12 +4,12 @@ import markdown
 from itsdangerous import URLSafeTimedSerializer as Serializer
 from flask_mail import Message as FlaskMessage
 from core import app, mail
-from hashlib import md5
 import uuid
+import re
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -21,6 +21,7 @@ class User(UserMixin):
         self.password = password
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.git_token = git_token if git_token is not None else uuid.uuid4().hex
         self.posts = db.postdb.find({"user_id": self._id})
         self.last_seen = last_seen
         try:
@@ -46,9 +47,12 @@ class User(UserMixin):
         return db.userdb.find_one({"_id": self._id}).get("following", [])
     @classmethod
     def get_by_username(cls, username):
-        data = db.userdb.find_one({"username": username})
+        data = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
         if data is not None:
-            return cls(**data)
+            user = cls(**data)
+            if "git_token" not in data:
+                db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
+            return user
 
     @classmethod
     def addaboutme(cls, username, aboutme):
@@ -64,7 +68,7 @@ class User(UserMixin):
 
     @classmethod
     def get_by_email(cls, email):
-        data = db.userdb.find_one({"email": email})
+        data = db.userdb.find_one({"email": re.compile(f"^{re.escape(email)}$", re.I)})
         if data is not None:
             return cls(**data)
 
@@ -72,7 +76,10 @@ class User(UserMixin):
     def get_by_id(cls, _id):
         data = db.userdb.find_one({"_id": _id})
         if data is not None:
-            return cls(**data)
+            user = cls(**data)
+            if "git_token" not in data:
+                db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
+            return user
 
     @classmethod
     def change_email(cls, username, email):
@@ -112,7 +119,8 @@ class User(UserMixin):
             "password": self.password,
             "followers": self.followers,
             "following": self.following,
-            "last_seen": self.last_seen
+            "last_seen": self.last_seen,
+            "git_token": self.git_token
         }
 
     @classmethod
@@ -426,3 +434,46 @@ class Comment:
             "parent_comment_id": self._id
         }).sort("timestamp", 1)
         return [Comment(**data) for data in reply_data]
+
+
+class Repository:
+    def __init__(self, name, owner, description=None, _id=None, timestamp=None):
+        self.name = name
+        self.owner = owner
+        self.description = description if description else "No description"
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "name": self.name,
+            "owner": self.owner,
+            "description": self.description,
+            "timestamp": self.timestamp
+        }
+
+    def save_to_mongo(self):
+        db.reposdb.insert_one(self.json())
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.reposdb.find_one({"_id": _id})
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def get_by_owner_and_name(cls, owner, name):
+        data = db.reposdb.find_one({
+            "owner": re.compile(f"^{re.escape(owner)}$", re.I),
+            "name": re.compile(f"^{re.escape(name)}$", re.I)
+        })
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def find_by_owner(cls, owner):
+        repos_data = db.reposdb.find({"owner": re.compile(f"^{re.escape(owner)}$", re.I)}).sort("timestamp", -1)
+        return [cls(**data) for data in repos_data]

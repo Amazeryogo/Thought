@@ -26,6 +26,16 @@
 
                     <hr class="my-4">
 
+                    <div class="mt-4">
+                        <h6>Git Access Token</h6>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control bg-light" value="{{ current_user.git_token }}" readonly>
+                        </div>
+                        <small class="text-muted">Use this as your password when cloning/pushing repositories.</small>
+                    </div>
+
+                    <hr class="my-4">
+
                     <form action="{{ url_for('logout') }}" method="post" class="d-grid">
                         <button type="submit" class="btn btn-outline-danger">
                             Logout

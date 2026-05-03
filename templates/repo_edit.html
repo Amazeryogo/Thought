@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name) }}">{{ repo.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit {{ path }}</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body p-4">
+            <h2 class="mb-4" style="font-family: 'Abril Fatface', cursive;">Edit File</h2>
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="path" class="form-label">File Path / Name</label>
+                    <input type="text" class="form-control" id="path" name="path" value="{{ path }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="content" class="form-label">Content</label>
+                    <textarea class="form-control bg-dark text-light" id="content" name="content" rows="15" style="font-family: monospace;">{{ content }}</textarea>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <a href="{{ url_for('repo_blob', username=repo.owner, reponame=repo.name, ref=ref, path=path) }}" class="btn btn-secondary mr-2">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Commit Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

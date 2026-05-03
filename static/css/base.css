@@ -165,3 +165,51 @@
         .dark-mode .message.outgoing .message-content {
             background-color: #0b5ed7;
         }
+
+        .dark-mode .table {
+            color: #ffffff;
+        }
+
+        .dark-mode .table thead th {
+            background-color: #2d2d2d;
+            border-bottom: 2px solid #4d4d4d;
+        }
+
+        .dark-mode .table-hover tbody tr:hover {
+            background-color: #2d2d2d;
+            color: #ffffff;
+        }
+
+        .dark-mode .breadcrumb {
+            background-color: #1f1f1f;
+            border: 1px solid #4d4d4d;
+        }
+
+        .dark-mode .breadcrumb-item.active {
+            color: #bbbbbb;
+        }
+
+        .dark-mode .dropdown-menu {
+            background-color: #1f1f1f;
+            color: #ffffff;
+            border: 1px solid #4d4d4d;
+        }
+
+        .dark-mode .dropdown-item {
+            color: #ffffff;
+        }
+
+        .dark-mode .dropdown-item:hover {
+            background-color: #2d2d2d;
+        }
+
+        .dark-mode pre {
+            background-color: #000000 !important;
+            color: #00ff00 !important;
+            border: 1px solid #333;
+        }
+
+        .dark-mode .badge-light {
+            background-color: #2d2d2d;
+            color: #ffffff;
+        }

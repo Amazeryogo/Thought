@@ -28,6 +28,7 @@ app.config['JWT_SECRET'] = os.environ.get("JWT_SECRET", SECRET_KEY)
 app.config['JWT_ALGORITHM'] = "HS256"
 app.config['JWT_EXP_DELTA_SECONDS'] = 3600
 IMAGED = os.environ.get("IMAGES_PATH")
+REPOS_PATH = os.environ.get("REPOS_PATH", "repos")
 COMMENT_MAX =2000
 POST_MAX = 5000
 ABOUT_ME_MAX = 50

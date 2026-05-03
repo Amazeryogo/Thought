@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name) }}">{{ repo.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Branches</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body p-4">
+            <h1 class="card-title mb-4" style="font-family: 'Abril Fatface', cursive;">Branches</h1>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>Branch Name</th>
+                            <th>Last Commit</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if branches %}
+                            {% for branch in branches %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name, ref=branch.name) }}">
+                                        <span class="material-symbols-outlined align-middle mr-2">call_split</span> {{ branch.name }}
+                                    </a>
+                                </td>
+                                <td class="text-muted">{{ branch.date }}</td>
+                                <td class="text-truncate" style="max-width: 300px;">{{ branch.message }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-4">No branches found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
