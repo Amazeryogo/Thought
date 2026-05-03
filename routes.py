@@ -27,7 +27,12 @@ def render_post_content(post):
                 media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
             else:
                 media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="Post Image">'
-            content = content.replace(placeholder, media_tag)
+
+            if placeholder in content:
+                content = content.replace(placeholder, media_tag)
+            else:
+                # If placeholder not in content, append image to the end
+                content += "\n\n" + media_tag
 
     # Remove any remaining placeholders that don't have a corresponding image
     content = re.sub(r'\[image\d+\]', '', content)
@@ -763,6 +768,37 @@ def repo_view(username, reponame, ref=None, path=""):
     )
 
 
+@app.route("/repo/<username>/<reponame>/branches")
+@login_required
+def repo_branches(username, reponame):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    try:
+        result = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short) %(authordate:relative) %(subject)", "refs/heads/"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        branches = []
+        for line in result.stdout.strip().splitlines():
+            parts = line.split(None, 2)
+            if len(parts) >= 1:
+                branches.append({
+                    "name": parts[0],
+                    "date": parts[1] if len(parts) >= 2 else "",
+                    "message": parts[2] if len(parts) >= 3 else ""
+                })
+    except subprocess.CalledProcessError:
+        branches = []
+
+    return render_template("repo_branches.html", repo=repo, branches=branches)
+
+
 @app.route("/repo/<username>/<reponame>/blob/<ref>/<path:path>")
 @login_required
 def repo_blob(username, reponame, ref, path):
@@ -790,6 +826,89 @@ def repo_blob(username, reponame, ref, path):
     )
 
 
+@app.route("/repo/<username>/<reponame>/edit/<ref>/<path:path>", methods=["GET", "POST"])
+@login_required
+def repo_edit(username, reponame, ref, path):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo or repo.owner != current_user.username:
+        flash("Unauthorized or repository not found.", "danger")
+        return redirect(url_for('repo_view', username=username, reponame=reponame))
+
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+
+    if request.method == "POST":
+        new_path = request.form.get("path", path)
+        new_content = request.form.get("content", "")
+
+        try:
+            # We use a temporary index to create a commit without a working directory
+            env = os.environ.copy()
+            index_file = os.path.join(repo_dir, f"temp_index_{uuid.uuid4().hex}")
+            env["GIT_INDEX_FILE"] = index_file
+
+            # 1. Read existing tree into index
+            subprocess.run(["git", "read-tree", ref], cwd=repo_dir, env=env, check=True)
+
+            # 2. Hash the new content into a blob
+            result = subprocess.run(["git", "hash-object", "-w", "--stdin"],
+                                   cwd=repo_dir, env=env, input=new_content.encode("utf-8"),
+                                   capture_output=True, check=True)
+            blob_hash = result.stdout.decode("utf-8").strip()
+
+            # 3. Update index with the new blob at the new path
+            # Remove old path if it changed
+            if new_path != path:
+                subprocess.run(["git", "rm", "--cached", "--ignore-unmatch", path],
+                               cwd=repo_dir, env=env, check=True)
+
+            subprocess.run(["git", "update-index", "--add", "--cacheinfo", "100644", blob_hash, new_path],
+                           cwd=repo_dir, env=env, check=True)
+
+            # 4. Write tree
+            result = subprocess.run(["git", "write-tree"], cwd=repo_dir, env=env, capture_output=True, check=True)
+            tree_hash = result.stdout.decode("utf-8").strip()
+
+            # 5. Create commit
+            parent_commit = subprocess.run(["git", "rev-parse", ref],
+                                         cwd=repo_dir, env=env, capture_output=True, check=True).stdout.decode("utf-8").strip()
+
+            commit_msg = f"Update {new_path}"
+            result = subprocess.run(["git", "commit-tree", tree_hash, "-p", parent_commit, "-m", commit_msg],
+                                   cwd=repo_dir, env=env, capture_output=True, check=True)
+            new_commit_hash = result.stdout.decode("utf-8").strip()
+
+            # 6. Update ref
+            subprocess.run(["git", "update-ref", f"refs/heads/{ref}", new_commit_hash], cwd=repo_dir, env=env, check=True)
+
+            if os.path.exists(index_file):
+                os.remove(index_file)
+
+            flash(f"File {new_path} updated successfully!", "success")
+            return redirect(url_for('repo_blob', username=username, reponame=reponame, ref=ref, path=new_path))
+
+        except subprocess.CalledProcessError as e:
+            flash(f"Error committing changes: {e.stderr.decode('utf-8') if e.stderr else str(e)}", "danger")
+            if 'index_file' in locals() and os.path.exists(index_file):
+                os.remove(index_file)
+
+    blob_content = get_git_blob(repo_dir, ref, path)
+    if blob_content is None:
+        abort(404)
+
+    try:
+        content = blob_content.decode("utf-8")
+    except UnicodeDecodeError:
+        content = "[Binary content]"
+
+    return render_template(
+        "repo_edit.html",
+        repo=repo,
+        ref=ref,
+        path=path,
+        content=content
+    )
+
+
 @app.route("/repo/delete/<repo_id>", methods=["POST"])
 @login_required
 def delete_repo(repo_id):
@@ -807,7 +926,6 @@ def delete_repo(repo_id):
     return redirect(url_for("user_repos", username=current_user.username))
 
 
-@app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
 def get_git_default_branch(repo_dir):
     try:
         result = subprocess.run(
@@ -868,17 +986,18 @@ def get_git_blob(repo_dir, ref, path):
         return None
 
 
+@app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
 def git_backend(username, reponame, rest):
     repo = Repository.get_by_owner_and_name(username, reponame)
     if not repo:
         abort(404)
 
-    # Simple Basic Auth for push operations
+    # Simple Basic Auth for push operations using git_token
     auth = request.authorization
     authenticated_user = None
     if auth:
         user = User.get_by_username(auth.username)
-        if user and User.login_valid(auth.username, auth.password):
+        if user and user.git_token == auth.password:
             authenticated_user = user
 
     # Git protocol detection

@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -21,6 +21,7 @@ class User(UserMixin):
         self.password = password
         self.invcode = invcode
         self._id = uuid.uuid4().hex if _id is None else _id
+        self.git_token = git_token if git_token is not None else uuid.uuid4().hex
         self.posts = db.postdb.find({"user_id": self._id})
         self.last_seen = last_seen
         try:
@@ -112,7 +113,8 @@ class User(UserMixin):
             "password": self.password,
             "followers": self.followers,
             "following": self.following,
-            "last_seen": self.last_seen
+            "last_seen": self.last_seen,
+            "git_token": self.git_token
         }
 
     @classmethod
