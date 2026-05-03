@@ -19,11 +19,20 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h1 class="card-title mb-0" style="font-family: 'Abril Fatface', cursive;">{{ repo.name }}</h1>
-                    <div class="mt-2">
-                        <a href="{{ url_for('repo_branches', username=repo.owner, reponame=repo.name) }}" class="badge badge-secondary p-2">
-                            <span class="material-symbols-outlined align-middle mr-1" style="font-size: 1rem;">call_split</span> Branches
-                        </a>
-                        <span class="badge badge-light p-2 ml-2">Ref: {{ ref }}</span>
+                    <div class="mt-2 d-flex align-items-center">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" type="button" id="branchDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="material-symbols-outlined mr-1" style="font-size: 1rem;">call_split</span> {{ ref }}
+                            </button>
+                            <div class="dropdown-menu" aria-labelledby="branchDropdown">
+                                <h6 class="dropdown-header">Branches</h6>
+                                {% for branch in branches %}
+                                    <a class="dropdown-item {% if branch == ref %}active{% endif %}" href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name, ref=branch) }}">{{ branch }}</a>
+                                {% endfor %}
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="{{ url_for('repo_branches', username=repo.owner, reponame=repo.name) }}">View all branches</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -56,6 +65,20 @@ git push -u origin main</pre>
             </div>
 
             <p class="text-muted mb-4">{{ repo.description }}</p>
+
+            {% if not path and not ref_exists %}
+            <div class="alert alert-info mt-4">
+                <p class="mb-1"><strong>Quick setup:</strong></p>
+                <pre class="bg-dark text-light p-3 rounded">
+echo "# {{ repo.name }}" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin {{ clone_url }}
+git push -u origin main</pre>
+            </div>
+            {% endif %}
 
             <div class="table-responsive border rounded">
                 <table class="table table-hover mb-0">
@@ -98,7 +121,11 @@ git push -u origin main</pre>
                             <tr>
                                 <td colspan="2" class="text-center text-muted py-4">
                                     {% if not path %}
-                                        Repository is empty. Push some code to get started!
+                                        {% if not ref_exists %}
+                                            Repository is empty. Push some code to get started!
+                                        {% else %}
+                                            No files found in this branch.
+                                        {% endif %}
                                     {% else %}
                                         This directory is empty.
                                     {% endif %}

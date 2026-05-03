@@ -799,6 +799,21 @@ def repo_view(username, reponame, ref=None, path=""):
         ref = get_git_default_branch(repo_dir)
 
     entries = list_git_tree(repo_dir, ref, path)
+
+    # Get all branches for selector
+    try:
+        branches = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+            cwd=repo_dir, capture_output=True, text=True
+        ).stdout.strip().splitlines()
+    except:
+        branches = []
+
+    # Check if the ref actually exists/has history
+    check = subprocess.run(["git", "rev-parse", "--verify", ref],
+                          cwd=repo_dir, capture_output=True)
+    ref_exists = (check.returncode == 0)
+
     clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
 
     return render_template(
@@ -807,7 +822,9 @@ def repo_view(username, reponame, ref=None, path=""):
         clone_url=clone_url,
         entries=entries,
         ref=ref,
-        path=path
+        path=path,
+        ref_exists=ref_exists,
+        branches=branches
     )
 
 
@@ -971,6 +988,7 @@ def delete_repo(repo_id):
 
 def get_git_default_branch(repo_dir):
     try:
+        # Check symbolic-ref first
         result = subprocess.run(
             ["git", "symbolic-ref", "--short", "HEAD"],
             cwd=repo_dir,
@@ -978,9 +996,27 @@ def get_git_default_branch(repo_dir):
             text=True,
             check=True
         )
-        return result.stdout.strip()
+        branch = result.stdout.strip()
+        # Verify if branch has any commits
+        check = subprocess.run(["git", "rev-parse", "--verify", branch],
+                              cwd=repo_dir, capture_output=True)
+        if check.returncode == 0:
+            return branch
+
+        # If HEAD's branch is unborn, try to find any other branch
+        branches = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True
+        ).stdout.strip().splitlines()
+
+        if branches:
+            return branches[0]
+
+        return branch # Fallback to unborn branch name
     except subprocess.CalledProcessError:
-        return "master" # Fallback
+        return "master"
 
 
 def list_git_tree(repo_dir, ref, path=""):
