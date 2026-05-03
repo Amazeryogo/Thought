@@ -9,6 +9,16 @@ import shutil
 import base64
 from datetime import datetime
 
+from models import Post
+
+
+@app.route('/image/posts/<user_id>/<image_name>')
+def image_post(user_id, image_name):
+    user_folder = os.path.join(IMAGED, "posts", user_id)
+    os.makedirs(user_folder, exist_ok=True)
+    save_path = os.path.join(user_folder, image_name)
+    return send_file(save_path, mimetype='image/png')
+
 @app.template_filter('render_post_content')
 def render_post_content(post):
     content = ""
@@ -21,18 +31,21 @@ def render_post_content(post):
         media_files = post.images
 
     if media_files:
-        for i, media_url in enumerate(media_files):
+        i = 0
+        for media_url in media_files:
+            print(media_url)
             placeholder = f"[image{i+1}]"
             if media_url.lower().endswith(('.mp4', '.webm')):
                 media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
             else:
-                media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="Post Image">'
+                media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="">'
 
             if placeholder in content:
                 content = content.replace(placeholder, media_tag)
             else:
                 # If placeholder not in content, append image to the end
                 content += "\n\n" + media_tag
+            i += 1
 
     # Remove any remaining placeholders that don't have a corresponding image
     content = re.sub(r'\[image\d+\]', '', content)
