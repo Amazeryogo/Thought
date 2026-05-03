@@ -426,3 +426,43 @@ class Comment:
             "parent_comment_id": self._id
         }).sort("timestamp", 1)
         return [Comment(**data) for data in reply_data]
+
+
+class Repository:
+    def __init__(self, name, owner, description=None, _id=None, timestamp=None):
+        self.name = name
+        self.owner = owner
+        self.description = description if description else "No description"
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "name": self.name,
+            "owner": self.owner,
+            "description": self.description,
+            "timestamp": self.timestamp
+        }
+
+    def save_to_mongo(self):
+        db.reposdb.insert_one(self.json())
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.reposdb.find_one({"_id": _id})
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def get_by_owner_and_name(cls, owner, name):
+        data = db.reposdb.find_one({"owner": owner, "name": name})
+        if data:
+            return cls(**data)
+        return None
+
+    @classmethod
+    def find_by_owner(cls, owner):
+        repos_data = db.reposdb.find({"owner": owner}).sort("timestamp", -1)
+        return [cls(**data) for data in repos_data]

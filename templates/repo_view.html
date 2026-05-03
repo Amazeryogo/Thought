@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ repo.name }}</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body p-4">
+            <h1 class="card-title" style="font-family: 'Abril Fatface', cursive;">{{ repo.name }}</h1>
+            <p class="text-muted mb-4">{{ repo.description }}</p>
+
+            <hr>
+
+            <div class="mt-4">
+                <h5>Clone this repository</h5>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control bg-light" id="cloneUrl" value="{{ clone_url }}" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyCloneUrl()">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">content_copy</span>
+                    </button>
+                </div>
+                <div class="alert alert-info">
+                    <p class="mb-1"><strong>Quick setup:</strong></p>
+                    <pre class="bg-dark text-light p-3 rounded">
+echo "# {{ repo.name }}" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin {{ clone_url }}
+git push -u origin main</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyCloneUrl() {
+    var copyText = document.getElementById("cloneUrl");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(copyText.value);
+    alert("Copied clone URL to clipboard!");
+}
+</script>
+{% endblock %}

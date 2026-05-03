@@ -1,8 +1,12 @@
+import os
 from models import *
 from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+import subprocess
+import shutil
+import base64
 from datetime import datetime
 
 @app.template_filter('render_post_content')
@@ -685,6 +689,151 @@ def get_following(username):
         "type": "following",
         "users": user.get("following", [])
     })
+
+
+@app.route("/repos/<username>")
+@login_required
+def user_repos(username):
+    user = User.get_by_username(username)
+    if not user:
+        abort(404)
+    repos = Repository.find_by_owner(username)
+    return render_template("repos.html", user=user, repos=repos)
+
+
+@app.route("/repo/create", methods=["GET", "POST"])
+@login_required
+def create_repo():
+    form = RepositoryForm()
+    if form.validate_on_submit():
+        name = secure_filename(form.name.data)
+        if not name:
+            flash("Invalid repository name.", "danger")
+            return render_template("create_repo.html", form=form)
+
+        existing = Repository.get_by_owner_and_name(current_user.username, name)
+        if existing:
+            flash("You already have a repository with that name.", "danger")
+            return render_template("create_repo.html", form=form)
+
+        repo_dir = os.path.join(REPOS_PATH, current_user.username, f"{name}.git")
+        if os.path.exists(repo_dir):
+            shutil.rmtree(repo_dir)
+
+        os.makedirs(repo_dir, exist_ok=True)
+        try:
+            subprocess.run(["git", "init", "--bare"], cwd=repo_dir, check=True)
+            # Enable git-http-backend
+            subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo_dir, check=True)
+
+            new_repo = Repository(name=name, owner=current_user.username, description=form.description.data)
+            new_repo.save_to_mongo()
+            flash(f"Repository {name} created successfully!", "success")
+            return redirect(url_for("repo_view", username=current_user.username, reponame=name))
+        except subprocess.CalledProcessError:
+            flash("Error initializing repository.", "danger")
+            return render_template("create_repo.html", form=form)
+
+    return render_template("create_repo.html", form=form)
+
+
+@app.route("/repo/<username>/<reponame>")
+@login_required
+def repo_view(username, reponame):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+    clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
+    return render_template("repo_view.html", repo=repo, clone_url=clone_url)
+
+
+@app.route("/repo/delete/<repo_id>", methods=["POST"])
+@login_required
+def delete_repo(repo_id):
+    repo = Repository.get_by_id(repo_id)
+    if not repo or repo.owner != current_user.username:
+        flash("Unauthorized or repository not found.", "danger")
+        return redirect(url_for("user_repos", username=current_user.username))
+
+    repo_dir = os.path.join(REPOS_PATH, repo.owner, f"{repo.name}.git")
+    if os.path.exists(repo_dir):
+        shutil.rmtree(repo_dir)
+
+    db.reposdb.delete_one({"_id": repo_id})
+    flash(f"Repository {repo.name} deleted.", "success")
+    return redirect(url_for("user_repos", username=current_user.username))
+
+
+@app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
+def git_backend(username, reponame, rest):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    # Simple Basic Auth for push operations
+    auth = request.authorization
+    authenticated_user = None
+    if auth:
+        user = User.get_by_username(auth.username)
+        if user and User.login_valid(auth.username, auth.password):
+            authenticated_user = user
+
+    # Git protocol detection
+    is_push = (rest == "git-receive-pack" or
+               (rest == "info/refs" and request.args.get("service") == "git-receive-pack"))
+
+    if is_push:
+        if not authenticated_user or authenticated_user.username != username:
+            return Response("Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="Git Login"'})
+
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+
+    env = os.environ.copy()
+    env["GIT_PROJECT_ROOT"] = os.path.dirname(repo_dir)
+    env["GIT_HTTP_EXPORT_ALL"] = "1"
+    env["PATH_INFO"] = f"/{reponame}.git/{rest}"
+    env["REMOTE_USER"] = authenticated_user.username if authenticated_user else "anonymous"
+    env["REQUEST_METHOD"] = request.method
+    env["QUERY_STRING"] = request.query_string.decode("utf-8")
+    env["CONTENT_TYPE"] = request.content_type if request.content_type else ""
+
+    backend_path = "/usr/lib/git-core/git-http-backend"
+
+    process = subprocess.Popen(
+        [backend_path],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    stdout, stderr = process.communicate(input=request.data)
+
+    if process.returncode != 0:
+        return Response(stderr, 500)
+
+    # git-http-backend returns HTTP headers followed by the body
+    header_end = stdout.find(b"\r\n\r\n")
+    if header_end == -1:
+        header_end = stdout.find(b"\n\n")
+        body_start = header_end + 2
+    else:
+        body_start = header_end + 4
+
+    headers_raw = stdout[:header_end].decode("utf-8")
+    body = stdout[body_start:]
+
+    response_headers = []
+    status_code = 200
+    for line in headers_raw.splitlines():
+        if line.startswith("Status: "):
+            status_code = int(line.split(" ")[1])
+        elif ": " in line:
+            key, value = line.split(": ", 1)
+            response_headers.append((key, value))
+
+    return Response(body, status_code, response_headers)
+
 
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required

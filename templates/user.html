@@ -54,7 +54,12 @@
                               manage_accounts
                         </span>
                     {% endif %}
-
+                    <span class="material-symbols-outlined"
+                          style="cursor: pointer;"
+                          onclick="location.href='/repos/{{ user.username }}'"
+                          title="View Repositories">
+                          source
+                    </span>
                 </div>
             </div>
         </div>
