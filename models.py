@@ -6,6 +6,7 @@ from flask_mail import Message as FlaskMessage
 from core import app, mail
 from hashlib import md5
 import uuid
+import re
 from datetime import datetime as bruh
 
 class User(UserMixin):
@@ -47,7 +48,7 @@ class User(UserMixin):
         return db.userdb.find_one({"_id": self._id}).get("following", [])
     @classmethod
     def get_by_username(cls, username):
-        data = db.userdb.find_one({"username": username})
+        data = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
         if data is not None:
             user = cls(**data)
             if "git_token" not in data:
@@ -68,7 +69,7 @@ class User(UserMixin):
 
     @classmethod
     def get_by_email(cls, email):
-        data = db.userdb.find_one({"email": email})
+        data = db.userdb.find_one({"email": re.compile(f"^{re.escape(email)}$", re.I)})
         if data is not None:
             return cls(**data)
 
@@ -465,12 +466,15 @@ class Repository:
 
     @classmethod
     def get_by_owner_and_name(cls, owner, name):
-        data = db.reposdb.find_one({"owner": owner, "name": name})
+        data = db.reposdb.find_one({
+            "owner": re.compile(f"^{re.escape(owner)}$", re.I),
+            "name": re.compile(f"^{re.escape(name)}$", re.I)
+        })
         if data:
             return cls(**data)
         return None
 
     @classmethod
     def find_by_owner(cls, owner):
-        repos_data = db.reposdb.find({"owner": owner}).sort("timestamp", -1)
+        repos_data = db.reposdb.find({"owner": re.compile(f"^{re.escape(owner)}$", re.I)}).sort("timestamp", -1)
         return [cls(**data) for data in repos_data]

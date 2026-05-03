@@ -1031,17 +1031,14 @@ def get_git_blob(repo_dir, ref, path):
 
 @app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
 def git_backend(username, reponame, rest):
-    # Try case-insensitive name if exact match fails
+    # Fetch repository (now case-insensitive)
     repo = Repository.get_by_owner_and_name(username, reponame)
     if not repo:
-        all_repos = Repository.find_by_owner(username)
-        for r in all_repos:
-            if r.name.lower() == reponame.lower():
-                repo = r
-                reponame = r.name # Use the canonical name
-                break
-    if not repo:
         abort(404)
+
+    # Use canonical names
+    username = repo.owner
+    reponame = repo.name
 
     # Simple Basic Auth for push operations using git_token
     auth = request.authorization
@@ -1056,7 +1053,7 @@ def git_backend(username, reponame, rest):
                (rest == "info/refs" and request.args.get("service") == "git-receive-pack"))
 
     if is_push:
-        if not authenticated_user or authenticated_user.username != username:
+        if not authenticated_user or authenticated_user.username.lower() != username.lower():
             return Response("Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="Git Login"'})
 
     repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
@@ -1069,6 +1066,8 @@ def git_backend(username, reponame, rest):
     env["REQUEST_METHOD"] = request.method
     env["QUERY_STRING"] = request.query_string.decode("utf-8")
     env["CONTENT_TYPE"] = request.content_type if request.content_type else ""
+    env["REMOTE_ADDR"] = request.remote_addr
+    env["SERVER_PROTOCOL"] = request.environ.get("SERVER_PROTOCOL", "HTTP/1.1")
 
     backend_path = "/usr/lib/git-core/git-http-backend"
 
@@ -1100,10 +1099,15 @@ def git_backend(username, reponame, rest):
     status_code = 200
     for line in headers_raw.splitlines():
         if line.startswith("Status: "):
-            status_code = int(line.split(" ")[1])
-        elif ": " in line:
-            key, value = line.split(": ", 1)
-            response_headers.append((key, value))
+            try:
+                status_code = int(line.split(" ")[1])
+            except (IndexError, ValueError):
+                pass
+        elif ":" in line:
+            key, value = line.split(":", 1)
+            # Avoid duplicate Content-Length or Transfer-Encoding if Flask handles them
+            if key.strip().lower() not in ["content-length", "transfer-encoding", "connection"]:
+                response_headers.append((key.strip(), value.strip()))
 
     return Response(body, status_code, response_headers)
 
