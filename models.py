@@ -58,7 +58,19 @@ class User(UserMixin):
         if not self.last_seen:
             return "Never"
 
-        diff = bruh.utcnow() - self.last_seen
+        ls = self.last_seen
+        if isinstance(ls, str):
+            try: ls = bruh.strptime(ls, '%H:%M:%S %Y-%m-%d')
+            except: return ls
+
+        now = bruh.utcnow()
+        # Handle naive vs aware datetime if necessary, though project seems naive
+        if ls.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=ls.tzinfo)
+        elif ls.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+
+        diff = now - ls
         seconds = diff.total_seconds()
 
         if seconds < 60:

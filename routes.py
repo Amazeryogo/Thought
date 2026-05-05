@@ -20,6 +20,14 @@ def image_post(user_id, image_name):
     save_path = os.path.join(user_folder, image_name)
     return send_file(save_path, mimetype='image/png')
 
+@app.template_filter('format_timestamp')
+def format_timestamp(ts):
+    if not ts:
+        return ""
+    if isinstance(ts, datetime):
+        return ts.strftime('%b %d, %Y - %H:%M')
+    return str(ts)
+
 @app.template_filter('render_post_content')
 def render_post_content(post):
     content = ""

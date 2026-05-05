@@ -15,9 +15,11 @@ def update_last_seen():
 @socketio.on('join')
 def on_join(data):
     if not current_user.is_authenticated:
+        print("Unauthenticated join attempt")
         return
     room = current_user.username
     join_room(room)
+    print(f"User {current_user.username} joined their notification room: {room}")
     update_last_seen()
 
 @socketio.on('leave')
@@ -26,10 +28,12 @@ def on_leave(data):
         return
     room = current_user.username
     leave_room(room)
+    print(f"User {current_user.username} left their notification room: {room}")
 
 @socketio.on('send_message')
 def handle_send_message(data):
     if not current_user.is_authenticated:
+        print("Unauthorized send_message attempt")
         return
 
     update_last_seen()
@@ -37,16 +41,22 @@ def handle_send_message(data):
     content = data.get('message')
 
     if not recipient or not content:
+        print(f"Malformed message from {current_user.username}")
         return
 
-    # Save message to DB
-    msg_json = Messages.send_message(current_user.username, recipient, content)
+    try:
+        # Save message to DB
+        msg_json = Messages.send_message(current_user.username, recipient, content)
 
-    # Emit to recipient's room
-    emit('new_message', msg_json, room=recipient)
+        # Emit to recipient's room
+        emit('new_message', msg_json, room=recipient)
 
-    # Emit back to sender to confirm
-    emit('message_sent', msg_json)
+        # Emit back to sender to confirm
+        emit('message_sent', msg_json)
+        print(f"Message from {current_user.username} to {recipient} delivered.")
+    except Exception as e:
+        print(f"Error sending message: {str(e)}")
+        emit('error', {'message': 'Failed to send message.'})
 
 @socketio.on('mark_read')
 def handle_mark_read(data):

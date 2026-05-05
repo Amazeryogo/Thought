@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io();
+    const socket = io({
+        transports: ['websocket', 'polling']
+    });
     const chatBox = document.getElementById("chat-box");
     const chatInput = document.getElementById("chatInput");
     const chatForm = document.getElementById("chat-form");
@@ -8,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let oldestMessageId = null;
 
     socket.on('connect', () => {
+        console.log("Connected to server");
         statusText.innerText = "Online";
         statusText.classList.remove('text-danger');
         socket.emit('join', {});
@@ -16,7 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('disconnect', () => {
+        console.log("Disconnected from server");
         statusText.innerText = "Offline";
+        statusText.classList.add('text-danger');
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error("Connection Error:", error);
+        statusText.innerText = "Connection Error";
         statusText.classList.add('text-danger');
     });
 

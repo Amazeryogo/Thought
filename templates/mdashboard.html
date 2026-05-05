@@ -20,7 +20,7 @@
                                         <div class="col min-width-0">
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <h5 class="mb-0 fw-bold text-truncate">{{ conv._id }}</h5>
-                                                <small class="text-muted">{{ conv.last_message.timestamp.strftime('%b %d, %Y') }}</small>
+                                                <small class="text-muted">{{ conv.last_message.timestamp | format_timestamp }}</small>
                                             </div>
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <p class="mb-0 text-muted text-truncate" style="max-width: 80%;">
@@ -62,4 +62,14 @@
         min-width: 0;
     }
 </style>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io({ transports: ['websocket', 'polling'] });
+        socket.on('connect', () => socket.emit('join', {}));
+        socket.on('new_message', (msg) => {
+            location.reload();
+        });
+    });
+</script>
 {% endblock %}
