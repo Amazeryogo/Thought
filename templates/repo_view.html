@@ -66,6 +66,26 @@ git push -u origin main</pre>
 
             <p class="text-muted mb-4">{{ repo.description }}</p>
 
+            {% if latest_commit %}
+            <div class="card mb-4 border-0 bg-light rounded-4">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ User.avatar(latest_commit.author) }}" class="rounded-circle mr-3" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+                        <div>
+                            <div class="mb-0"><strong>{{ latest_commit.author }}</strong> <span class="text-muted small">{{ latest_commit.message }}</span></div>
+                            <div class="text-muted small">{{ latest_commit.date.strftime('%b %d, %Y') }}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('repo_commits', username=repo.owner, reponame=repo.name, ref=ref) }}" class="text-muted d-flex align-items-center">
+                            <span class="material-symbols-outlined mr-1" style="font-size: 1.2rem;">history</span>
+                            <span class="small font-weight-bold">History</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             {% if not path and not ref_exists %}
             <div class="alert alert-info mt-4">
                 <p class="mb-1"><strong>Quick setup:</strong></p>
@@ -135,6 +155,18 @@ git push -u origin main</pre>
                     </tbody>
                 </table>
             </div>
+
+            {% if readme_content %}
+            <div class="mt-5 pt-4 border-top">
+                <div class="d-flex align-items-center mb-3">
+                    <span class="material-symbols-outlined mr-2 text-muted">menu_book</span>
+                    <h5 class="mb-0">README.md</h5>
+                </div>
+                <div class="markdown-body p-4 border rounded bg-white shadow-sm">
+                    {{ readme_content|safe }}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

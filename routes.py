@@ -7,6 +7,7 @@ import re
 import subprocess
 import shutil
 import base64
+import markdown
 from datetime import datetime
 
 from models import Post
@@ -774,7 +775,6 @@ def repo_view(username, reponame, ref=None, path=""):
     if not ref:
         ref = get_git_default_branch(repo_dir)
 
-    entries = list_git_tree(repo_dir, ref, path)
     try:
         branches = subprocess.run(
             ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
@@ -786,6 +786,23 @@ def repo_view(username, reponame, ref=None, path=""):
                           cwd=repo_dir, capture_output=True)
     ref_exists = (check.returncode == 0)
 
+    entries = list_git_tree(repo_dir, ref, path)
+
+    latest_commit = get_latest_commit(repo_dir, ref) if ref_exists else None
+
+    readme_content = None
+    if not path and ref_exists:
+        for entry in entries:
+            if entry['name'].lower() in ['readme.md', 'readme.markdown']:
+                blob = get_git_blob(repo_dir, ref, entry['name'])
+                if blob:
+                    try:
+                        # Basic sanitization could go here, but using the project's markdown pattern
+                        readme_content = markdown.markdown(blob.decode('utf-8'))
+                    except:
+                        pass
+                break
+
     clone_url = f"{request.url_root.rstrip('/')}/git/{username}/{reponame}.git"
     return render_template(
         "repo_view.html",
@@ -795,7 +812,27 @@ def repo_view(username, reponame, ref=None, path=""):
         ref=ref,
         path=path,
         ref_exists=ref_exists,
-        branches=branches
+        branches=branches,
+        latest_commit=latest_commit,
+        readme_content=readme_content
+    )
+
+
+@app.route("/repo/<username>/<reponame>/commits/<ref>")
+@login_required
+def repo_commits(username, reponame, ref):
+    repo = Repository.get_by_owner_and_name(username, reponame)
+    if not repo:
+        abort(404)
+
+    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    commits = get_commit_history(repo_dir, ref)
+
+    return render_template(
+        "repo_commits.html",
+        repo=repo,
+        ref=ref,
+        commits=commits
     )
 
 
@@ -1034,6 +1071,76 @@ def get_git_blob(repo_dir, ref, path):
         return result.stdout
     except subprocess.CalledProcessError:
         return None
+
+
+def get_latest_commit(repo_dir, ref):
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%H%n%an%n%at%n%s", ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = result.stdout.strip().splitlines()
+        if len(lines) >= 4:
+            return {
+                "hash": lines[0],
+                "author": lines[1],
+                "date": datetime.fromtimestamp(int(lines[2])),
+                "message": lines[3]
+            }
+    except:
+        return None
+
+
+def get_commit_history(repo_dir, ref):
+    try:
+        # Format: hash | author | date | subject | graph
+        # Using %ad with --date=short for date
+        result = subprocess.run(
+            ["git", "log", "--graph", "--format=format:%H%x09%an%x09%at%x09%s", ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        commits = []
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+
+            # Find the tab characters used as separators
+            parts = line.split('\t')
+            if len(parts) >= 4:
+                # The first part contains the graph and the hash
+                graph_and_hash = parts[0]
+                hash_match = re.search(r'([0-9a-f]{40})', graph_and_hash)
+                if hash_match:
+                    commit_hash = hash_match.group(1)
+                    graph = graph_and_hash[:hash_match.start()]
+                    commits.append({
+                        "graph": graph,
+                        "hash": commit_hash,
+                        "author": parts[1],
+                        "date": datetime.fromtimestamp(int(parts[2])),
+                        "message": parts[3]
+                    })
+                else:
+                    # Line with just graph characters
+                    commits.append({
+                        "graph": line,
+                        "hash": None
+                    })
+            else:
+                # Line with just graph characters or malformed
+                commits.append({
+                    "graph": line,
+                    "hash": None
+                })
+        return commits
+    except:
+        return []
 
 
 @app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
