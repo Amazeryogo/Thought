@@ -54,6 +54,22 @@ class User(UserMixin):
                 db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
             return user
 
+    def last_live(self):
+        if not self.last_seen:
+            return "Never"
+
+        diff = bruh.utcnow() - self.last_seen
+        seconds = diff.total_seconds()
+
+        if seconds < 60:
+            return "Online"
+        elif seconds < 3600:
+            return f"Last seen {int(seconds // 60)}m ago"
+        elif seconds < 86400:
+            return f"Last seen {int(seconds // 3600)}h ago"
+        else:
+            return f"Last seen {int(seconds // 86400)}d ago"
+
     @classmethod
     def addaboutme(cls, username, aboutme):
         db.userdb.update_one({"username": username}, {"$set": {"aboutme": aboutme}})
@@ -174,7 +190,7 @@ If you did not make this request then simply ignore this email and no changes wi
 
 
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None):
+    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
         self.sender = sender
         self.receiver = receiver
         self.timestamp = timestamp
@@ -183,6 +199,7 @@ class Messages:
         self.s_av = User.avatar(sender)
         self.reactions = reactions if reactions is not None else {}
         self.media = media
+        self.read = read
 
     def json(self):
         if isinstance(self.timestamp, str):
@@ -196,21 +213,21 @@ class Messages:
             "timestamp": formatted_timestamp,
             "_id": self._id,
             "reactions": self.reactions,
-            "media": self.media
+            "media": self.media,
+            "read": self.read
         }
 
     @classmethod
     def get_chat(cls, user1, user2, before=None, limit=20):
         query = {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]}
         if before:
-            # We need to get the timestamp of the 'before' message
             before_message = db.messagesdb.find_one({"_id": before})
             if before_message:
                 query["timestamp"] = {"$lt": before_message["timestamp"]}
 
         chats = db.messagesdb.find(query).sort("timestamp", -1).limit(limit)
         chats = list(chats)
-        chats.reverse() # To get the messages in chronological order
+        chats.reverse()
         return [cls(**chat) for chat in chats]
 
     @classmethod
@@ -221,19 +238,49 @@ class Messages:
         return new_message.json()
 
     @classmethod
+    def mark_as_read(cls, sender, receiver):
+        db.messagesdb.update_many(
+            {"sender": sender, "receiver": receiver, "read": False},
+            {"$set": {"read": True}}
+        )
+
+    @classmethod
+    def get_conversations(cls, username):
+        # Optimized to get conversations with last message and unread count
+        pipeline = [
+            {"$match": {"$or": [{"sender": username}, {"receiver": username}]}},
+            {"$sort": {"timestamp": -1}},
+            {"$group": {
+                "_id": {
+                    "$cond": [
+                        {"$eq": ["$sender", username]},
+                        "$receiver",
+                        "$sender"
+                    ]
+                },
+                "last_message": {"$first": "$$ROOT"},
+                "unread_count": {
+                    "$sum": {
+                        "$cond": [
+                            {"$and": [{"$eq": ["$receiver", username]}, {"$eq": ["$read", False]}]},
+                            1,
+                            0
+                        ]
+                    }
+                }
+            }},
+            {"$sort": {"last_message.timestamp": -1}}
+        ]
+        return list(db.messagesdb.aggregate(pipeline))
+
+    @classmethod
     def get_users(self):
+        # Keeping for backward compatibility if needed, but get_conversations is better
         users = []
-        for i in db.messagesdb.find():
-            if i['sender'] == current_user.username:
-                if i['receiver'] not in users:
-                    users.append(i['receiver'])
-                else:
-                    pass
-            elif i['receiver'] == current_user.username:
-                if i['sender'] not in users:
-                    users.append(i['sender'])
-                else:
-                    pass
+        for i in db.messagesdb.find({"$or": [{"sender": current_user.username}, {"receiver": current_user.username}]}):
+            other = i['receiver'] if i['sender'] == current_user.username else i['sender']
+            if other not in users:
+                users.append(other)
         return users
 
     def save_to_mongo(self):
@@ -244,17 +291,17 @@ class Messages:
             "timestamp": self.timestamp,
             "_id": self._id,
             "reactions": self.reactions,
-            "media": self.media
+            "media": self.media,
+            "read": self.read
         })
-
 
     @classmethod
     def get_last_message(cls, user1, user2):
-        chats = db.messagesdb.find(
-            {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]})
-        chats = list(chats)
-        chats.sort(key=lambda x: x["timestamp"])
-        return [i for i in chats][-1]
+        chat = db.messagesdb.find_one(
+            {"$or": [{"sender": user1, "receiver": user2}, {"sender": user2, "receiver": user1}]},
+            sort=[("timestamp", -1)]
+        )
+        return chat
 
 
 

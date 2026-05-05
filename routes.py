@@ -535,14 +535,8 @@ def reset_token(token):
 @app.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
-    k = []
-    c = Messages.get_users()
-    for i in c:
-        p = Messages.get_last_message(current_user.username, i)
-        k.append([p, i])
-    if len(k) == 0:
-        k = None
-    return render_template('mdashboard.html', k=k)
+    conversations = Messages.get_conversations(current_user.username)
+    return render_template('mdashboard.html', conversations=conversations, User=User)
 
 
 @app.route('/deletemsg')
@@ -558,16 +552,21 @@ def deletemsg():
 @app.route("/message/<username>")
 @login_required
 def message_page(username):
-    return render_template("message-page.html", username=username)
+    other_user = User.get_by_username(username)
+    if not other_user:
+        abort(404)
+    return render_template("message-page.html", username=username, other_user=other_user, User=User)
 
-@app.route("/messages6")
+@app.route("/api/messages")
 @login_required
 def get_messages():
     user2 = request.args.get("with")
     before = request.args.get("before")
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2,before=before)
+    chat = Messages.get_chat(current_user.username, user2, before=before)
+    # Automatically mark messages as read when fetched via API
+    Messages.mark_as_read(user2, current_user.username)
     return jsonify([m.json() for m in chat])
 
 @app.route('/save_theme', methods=['POST'])
@@ -579,22 +578,6 @@ def save_theme():
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Invalid theme'}), 400
 
-@app.route("/api/send_message", methods=["POST"])
-@login_required
-def send_message_api():
-    data = request.get_json()
-    recipient = data.get("username")
-    content = data.get("message")
-    media = data.get("media")
-
-    if not recipient or (not content and not media):
-        return jsonify({"success": False, "error": "Missing data"}), 400
-
-    if content and len(content) > MESSAGE_MAX:
-        return jsonify({"success": False, "error": "Message too long"}), 400
-
-    Messages.send_message(current_user.username, recipient, content, media=media)
-    return jsonify({"success": True})
 
 
 @app.route("/api/message/react", methods=["POST"])
@@ -814,7 +797,8 @@ def repo_view(username, reponame, ref=None, path=""):
         ref_exists=ref_exists,
         branches=branches,
         latest_commit=latest_commit,
-        readme_content=readme_content
+        readme_content=readme_content,
+        User=User
     )
 
 
@@ -832,7 +816,8 @@ def repo_commits(username, reponame, ref):
         "repo_commits.html",
         repo=repo,
         ref=ref,
-        commits=commits
+        commits=commits,
+        User=User
     )
 
 

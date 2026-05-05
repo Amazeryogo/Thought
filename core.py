@@ -4,6 +4,7 @@ from flask import *
 from flask_login import *
 from flask_pymongo import *
 from flask_mail import Mail
+from flask_socketio import SocketIO
 
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
@@ -17,6 +18,13 @@ login.login_view = '/login'
 app.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(app)
+socketio = SocketIO(app, manage_session=True, cors_allowed_origins="*")
+
+@app.context_processor
+def inject_globals():
+    from models import User
+    return dict(User=User)
+
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.googlemail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']

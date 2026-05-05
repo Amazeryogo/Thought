@@ -3,34 +3,63 @@
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-7">
-            <div class="card shadow rounded-4">
-                <div class="card-body">
-                    <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
-                        Messages
-                    </h2>
-                    {% if k %}
-                        <div class="list-group">
-                            {% for l in k %}
-                                <a href="/message/{{ l[1] }}" class="list-group-item list-group-item-action rounded mb-2">
-                                    <div class="d-flex justify-content-between">
-                                        <h5 class="mb-1 fw-semibold">{{ l[1] }}</h5>
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+                <div class="card-header bg-dark text-white p-4">
+                    <h2 class="mb-0" style="font-family: 'Abril Fatface', cursive;">Messages</h2>
+                </div>
+                <div class="card-body p-0">
+                    {% if conversations %}
+                        <div class="list-group list-group-flush">
+                            {% for conv in conversations %}
+                                <a href="/message/{{ conv._id }}" class="list-group-item list-group-item-action p-4 border-bottom">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <img src="{{ User.avatar(conv._id) }}" class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+                                        </div>
+                                        <div class="col min-width-0">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <h5 class="mb-0 fw-bold text-truncate">{{ conv._id }}</h5>
+                                                <small class="text-muted">{{ conv.last_message.timestamp.strftime('%b %d, %Y') }}</small>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <p class="mb-0 text-muted text-truncate" style="max-width: 80%;">
+                                                    {% if conv.last_message.sender == current_user.username %}
+                                                        <span class="text-primary font-weight-bold">You:</span>
+                                                    {% endif %}
+                                                    {{ conv.last_message.message }}
+                                                </p>
+                                                {% if conv.unread_count > 0 %}
+                                                    <span class="badge badge-primary badge-pill px-2 py-1 ml-2">{{ conv.unread_count }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <p class="mb-1 text-muted">
-                                        {{ l[0]['sender'] }} said: {{ l[0]['message'] }}
-                                    </p>
                                 </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <div class="text-center py-5 text-muted" style="font-size: 'Abril Fatface', cursive;">
-                            <p>Oops! Have you messaged anyone?</p>
+                        <div class="text-center py-5">
+                            <span class="material-symbols-outlined text-muted" style="font-size: 5rem;">chat_bubble_outline</span>
+                            <h4 class="mt-3 text-muted">No conversations yet</h4>
+                            <p class="text-muted">Search for users to start a chat!</p>
                         </div>
                     {% endif %}
-
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .list-group-item {
+        transition: background-color 0.2s ease;
+    }
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    .min-width-0 {
+        min-width: 0;
+    }
+</style>
 {% endblock %}
