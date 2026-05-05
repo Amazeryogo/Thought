@@ -570,12 +570,43 @@ def message_page(username):
 def get_messages():
     user2 = request.args.get("with")
     before = request.args.get("before")
+    after = request.args.get("after") # Added 'after' for efficient polling
     if not user2:
         return jsonify([])
-    chat = Messages.get_chat(current_user.username, user2, before=before)
+
+    query = {"$or": [{"sender": current_user.username, "receiver": user2}, {"sender": user2, "receiver": current_user.username}]}
+
+    if before:
+        before_msg = db.messagesdb.find_one({"_id": before})
+        if before_msg: query["timestamp"] = {"$lt": before_msg["timestamp"]}
+    elif after:
+        after_msg = db.messagesdb.find_one({"_id": after})
+        if after_msg: query["timestamp"] = {"$gt": after_msg["timestamp"]}
+
+    chats = list(db.messagesdb.find(query).sort("timestamp", -1).limit(50))
+    if not after:
+        chats.reverse()
+
     # Automatically mark messages as read when fetched via API
     Messages.mark_as_read(user2, current_user.username)
-    return jsonify([m.json() for m in chat])
+    # Update current user's last_seen
+    db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": datetime.utcnow()}})
+
+    return jsonify([Messages(**m).json() for m in chats])
+
+@app.route("/api/messages/send", methods=["POST"])
+@login_required
+def send_message_v2():
+    data = request.get_json()
+    recipient = data.get("recipient")
+    content = data.get("message")
+
+    if not recipient or not content:
+        return jsonify({"success": False, "error": "Missing data"}), 400
+
+    msg = Messages.send_message(current_user.username, recipient, content)
+    db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": datetime.utcnow()}})
+    return jsonify({"success": True, "message": msg})
 
 @app.route('/save_theme', methods=['POST'])
 def save_theme():
@@ -587,6 +618,21 @@ def save_theme():
     return jsonify({'status': 'error', 'message': 'Invalid theme'}), 400
 
 
+
+@app.route("/api/conversations")
+@login_required
+def get_conversations_api():
+    conversations = Messages.get_conversations(current_user.username)
+    # Map to JSON serializable format
+    res = []
+    for c in conversations:
+        res.append({
+            "username": c["_id"],
+            "last_message": Messages(**c["last_message"]).json(),
+            "unread_count": c["unread_count"],
+            "avatar": User.avatar(c["_id"])
+        })
+    return jsonify(res)
 
 @app.route("/api/message/react", methods=["POST"])
 @login_required

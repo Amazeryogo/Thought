@@ -62,14 +62,24 @@
         min-width: 0;
     }
 </style>
-<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const socket = io({ transports: ['websocket', 'polling'] });
-        socket.on('connect', () => socket.emit('join', {}));
-        socket.on('new_message', (msg) => {
-            location.reload();
-        });
+        let lastUpdate = Date.now();
+        async function checkUpdates() {
+            try {
+                const res = await fetch("/api/conversations");
+                const data = await res.json();
+                // Simple strategy: reload if any unread count > 0 and we haven't reloaded recently
+                // Or if the last message ID of the first conversation changed
+                if (data.length > 0) {
+                    const firstConv = data[0];
+                    if (firstConv.unread_count > 0) {
+                        location.reload();
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+        setInterval(checkUpdates, 5000);
     });
 </script>
 {% endblock %}

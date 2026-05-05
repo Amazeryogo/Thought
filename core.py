@@ -1,13 +1,9 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 import flask_bootstrap
 from flask import *
 from flask_login import *
 from flask_pymongo import *
 from flask_mail import Mail
-from flask_socketio import SocketIO
 
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
@@ -21,7 +17,6 @@ login.login_view = '/login'
 app.config['TESTING'] = False
 db = mongo.db
 flask_bootstrap.Bootstrap(app)
-socketio = SocketIO(app, manage_session=True, cors_allowed_origins="*", async_mode='eventlet')
 
 @app.context_processor
 def inject_globals():

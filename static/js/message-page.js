@@ -1,57 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io({
-        transports: ['websocket', 'polling']
-    });
     const chatBox = document.getElementById("chat-box");
     const chatInput = document.getElementById("chatInput");
     const chatForm = document.getElementById("chat-form");
     const statusText = document.getElementById("status-text");
 
-    let oldestMessageId = null;
-
-    socket.on('connect', () => {
-        console.log("Connected to server");
-        statusText.innerText = "Online";
-        statusText.classList.remove('text-danger');
-        socket.emit('join', {});
-        // Mark messages as read when joining the room
-        socket.emit('mark_read', { username: RECIPIENT });
-    });
-
-    socket.on('disconnect', () => {
-        console.log("Disconnected from server");
-        statusText.innerText = "Offline";
-        statusText.classList.add('text-danger');
-    });
-
-    socket.on('connect_error', (error) => {
-        console.error("Connection Error:", error);
-        statusText.innerText = "Connection Error";
-        statusText.classList.add('text-danger');
-    });
-
-    socket.on('new_message', (msg) => {
-        if (msg.sender === RECIPIENT) {
-            appendMessage(msg);
-            socket.emit('mark_read', { username: RECIPIENT });
-        }
-    });
-
-    socket.on('message_sent', (msg) => {
-        appendMessage(msg);
-    });
-
-    chatForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const message = chatInput.value.trim();
-        if (message) {
-            socket.emit('send_message', {
-                recipient: RECIPIENT,
-                message: message
-            });
-            chatInput.value = "";
-        }
-    });
+    let lastMessageId = null;
+    let isPolling = false;
 
     function appendMessage(msg, prepend = false) {
         const isSent = msg.sender === CURRENT_USER;
@@ -76,19 +30,54 @@ document.addEventListener('DOMContentLoaded', () => {
             chatBox.appendChild(msgWrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
+
+        lastMessageId = msg._id;
     }
 
-    async function loadInitialMessages() {
+    async function pollMessages() {
+        if (isPolling) return;
+        isPolling = true;
         try {
-            const res = await fetch(`/api/messages?with=${encodeURIComponent(RECIPIENT)}`);
+            const url = lastMessageId
+                ? `/api/messages?with=${encodeURIComponent(RECIPIENT)}&after=${lastMessageId}`
+                : `/api/messages?with=${encodeURIComponent(RECIPIENT)}`;
+
+            const res = await fetch(url);
             const messages = await res.json();
-            chatBox.innerHTML = "";
-            messages.forEach(msg => appendMessage(msg));
-            chatBox.scrollTop = chatBox.scrollHeight;
+
+            if (Array.isArray(messages) && messages.length > 0) {
+                messages.forEach(msg => appendMessage(msg));
+            }
+            statusText.innerText = "Online";
         } catch (e) {
-            console.error("Failed to load messages", e);
+            console.error("Polling failed", e);
+            statusText.innerText = "Connection lost...";
+        } finally {
+            isPolling = false;
         }
     }
 
-    loadInitialMessages();
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        chatInput.value = "";
+        try {
+            const res = await fetch("/api/messages/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ recipient: RECIPIENT, message: message })
+            });
+            const data = await res.json();
+            if (data.success) {
+                appendMessage(data.message);
+            }
+        } catch (e) {
+            console.error("Send failed", e);
+        }
+    });
+
+    pollMessages();
+    setInterval(pollMessages, 3000);
 });

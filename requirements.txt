@@ -8,8 +8,6 @@ flask_bootstrap
 dnspython
 gunicorn
 markdown
-flask-socketio
-eventlet
 pyjwt
 Flask-Mail
 email-validator
