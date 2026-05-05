@@ -552,9 +552,14 @@ def messagingdashboard():
 def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
-    red = x.get("redirect")
+    is_ajax = x.get("ajax")
     db.messagesdb.delete_one({"_id": msg_id, "sender":current_user.username})
-    red = "/message/" + red
+
+    if is_ajax:
+        return jsonify({"success": True})
+
+    red = x.get("redirect")
+    red = "/message/" + red if red else "/messaging/dashboard"
     return redirect(red)
 
 @app.route("/message/<username>")
