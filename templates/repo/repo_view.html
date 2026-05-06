@@ -73,7 +73,7 @@ password: {{ current_user.git_token }}
             <div class="card mb-4 border-0 bg-light rounded-4">
                 <div class="card-body p-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
-                        <img src="{{ User.avatar(latest_commit.author) }}" class="rounded-circle mr-3" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='/extras/noavatar.jpeg'">
+                        <img src="{{ User.avatar(latest_commit.author) }}" class="rounded-circle mr-3" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
                         <div>
                             <div class="mb-0"><strong>{{ latest_commit.author }}</strong> <span class="text-muted small">{{ latest_commit.message }}</span></div>
                             <div class="text-muted small">{{ latest_commit.date.strftime('%b %d, %Y') }}</div>
