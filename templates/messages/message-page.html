@@ -5,14 +5,14 @@
   <div class="row justify-content-center h-100">
     <div class="col-md-10 col-lg-8 d-flex flex-column h-100">
       <div class="card shadow-lg border-0 rounded-4 overflow-hidden d-flex flex-column h-100">
-        <div class="card-header bg-dark text-white p-3 d-flex align-items-center flex-shrink-0">
+        <div class="card-header text-black p-3 d-flex align-items-center flex-shrink-0">
             <a href="/messaging/dashboard" class="text-white mr-3">
                 <span class="material-symbols-outlined">arrow_back</span>
             </a>
             <img src="{{ User.avatar(username) }}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;">
             <div class="flex-grow-1">
                 <h5 class="mb-0 fw-bold"><a href="/{{ username }}">{{ username }}</a></h5>
-                <small id="status-text" class="text-light opacity-75">{{ other_user.last_live() }}</small>
+                <small id="status-text" class="text-black opacity-75">{{ other_user.last_live() }}</small>
             </div>
         </div>
           <div id="chat-box" class="card-body p-4 bg-light d-flex flex-column" style="flex: 1 1 auto; max-height: 65vh; overflow-y: auto; overflow-x: hidden;">
