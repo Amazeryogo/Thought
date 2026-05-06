@@ -29,7 +29,7 @@
                                         <div>
                                             <h6 class="mb-1 font-weight-bold">{{ commit.message }}</h6>
                                             <div class="d-flex align-items-center mt-2">
-                                                <img src="{{ User.avatar(commit.author) }}" class="rounded-circle mr-2" style="width: 24px; height: 24px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+                                                <img src="{{ User.avatar(commit.author) }}" class="rounded-circle mr-2" style="width: 24px; height: 24px; object-fit: cover;" onerror="this.src='/extras/noavatar.jpeg'">
                                                 <span class="small"><strong>{{ commit.author }}</strong> committed on {{ commit.date.strftime('%b %d, %Y') }}</span>
                                             </div>
                                         </div>

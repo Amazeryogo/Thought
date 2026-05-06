@@ -189,7 +189,7 @@ def delete_comment(comment_id):
 
 @app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
+    return send_from_directory(os.path.join(app.root_path, 'extra'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm"}
@@ -682,7 +682,7 @@ def avatar(username):
         if os.path.isfile(path):
             return send_from_directory(static_dir, f"pfp.{ext}")
     # Default fallback
-    return send_from_directory("static",f"noavatar.jpeg")
+    return send_from_directory("extra", f"noavatar.jpeg")
 
 
 
