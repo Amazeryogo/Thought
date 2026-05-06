@@ -59,7 +59,10 @@ git add README.md
 git commit -m "first commit"
 git branch -M main
 git remote add origin {{ clone_url }}
-git push -u origin main</pre>
+git push -u origin main
+username: {{ current_user.username }}
+password: {{ current_user.git_token }}
+                        </pre>
                     </div>
                 </div>
             </div>
@@ -96,7 +99,10 @@ git add README.md
 git commit -m "first commit"
 git branch -M main
 git remote add origin {{ clone_url }}
-git push -u origin main</pre>
+git push -u origin main
+username: {{ current_user.username }}
+password: {{ current_user.git_token }}
+                </pre>
             </div>
             {% endif %}
 

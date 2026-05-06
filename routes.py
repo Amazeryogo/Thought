@@ -43,7 +43,6 @@ def render_post_content(post):
     if media_files:
         i = 0
         for media_url in media_files:
-            print(media_url)
             placeholder = f"[image{i+1}]"
             if media_url.lower().endswith(('.mp4', '.webm')):
                 media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
@@ -114,7 +113,7 @@ def post_view(post_id):
     form = CommentForm()
 
     if form.validate_on_submit():
-        if len(form.content.data) <= COMMENT_MAX:
+        if len(form.content.data) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
@@ -124,7 +123,10 @@ def post_view(post_id):
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
-            flash('comment reply too large','warning')
+            if len(form.content.data) >= COMMENT_MAX:
+                flash('comment reply too large','warning')
+            else:
+                flash('message is too small','warning')
     # Fetch comments for this post
     all_comments = Comment.find_by_post_id(post_id)
 
@@ -162,7 +164,7 @@ def reply_to_comment(comment_id):
 
     content = request.form.get("reply_content")
     if content:
-        if len(content) <= COMMENT_MAX:
+        if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
             post_id=parent_comment.post_id,
             user_id=current_user._id,
@@ -172,7 +174,10 @@ def reply_to_comment(comment_id):
         )
             flash("Reply posted!", "success")
         else:
-            flash("comment too large", 'warning')
+            if len(content) > COMMENT_MAX:
+                flash("comment too large", 'warning')
+            else:
+                flash("comment too small",'warning')
     return redirect(request.referrer)
 
 @app.route("/comment/delete/<comment_id>", methods=["POST"])
@@ -189,7 +194,7 @@ def delete_comment(comment_id):
 
 @app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'extra'),
+    return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm"}
@@ -305,12 +310,15 @@ def register():
             find_user = User.get_by_email(email)
             if find_user is None:
                 if len(username) in range(USERNAME_MIN,USERNAME_MAX+1):
-                    if len(request.form["password"]) <= PASSWORD_MAX:
+                    if len(request.form["password"]) in range(PASSWORD_MIN,PASSWORD_MAX+1):
                         User.register(username, email, password, invcode)
                         flash(f'Account created for {form.username.data}!', 'success')
                         return redirect(url_for('home'))
                     else:
-                        flash('password too long','warning')
+                        if len(request.form["password"]) > PASSWORD_MAX:
+                            flash('password too long','warning')
+                        else:
+                            flash('password too short','warning')
                 else:
                     flash('username does not meet requirements')
             else:
@@ -368,7 +376,7 @@ def createnewpost():
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
 
-        if len(content) <= POST_MAX:
+        if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
                 username=current_user.username,
                 title=title,
@@ -381,7 +389,10 @@ def createnewpost():
             flash('Your post has been created!', 'success')
             return redirect('/me')
         else:
-            flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
+            if len(content) > POST_MAX:
+                flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
+            else:
+                flash('post content is too less','warning')
     return render_template('forms/edit_post.html', form=form, p=p)
 
 
@@ -451,7 +462,7 @@ def settings():
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
 
-        if len(aboutme) <= ABOUT_ME_MAX:
+        if len(aboutme) in range(ABOUT_ME_MIN,ABOUT_ME_MAX+1):
             User.addaboutme(current_user.username, aboutme)
             User.change_email(current_user.username, email)
 
@@ -463,7 +474,7 @@ def settings():
                     flash("Invalid file type", "danger")
                 else:
                     ext = file.filename.rsplit('.', 1)[1].lower()
-                    user_dir = os.path.join(STATIC_FOLDER, current_user.username)
+                    user_dir = os.path.join(IMAGED,'users',current_user.username)
                     os.makedirs(user_dir, exist_ok=True)
 
                     # Remove old avatars
@@ -481,8 +492,10 @@ def settings():
             flash('Your changes have been saved', 'success')
             return redirect('/me')
         else:
-            flash('Your "About Me" is too long.', 'warning')
-
+            if len(aboutme) > ABOUT_ME_MAX:
+                flash('Your "About Me" is too long.', 'warning')
+            else:
+                flash('Your "About Me" is too short.', 'warning')
     return render_template('forms/settings.html', title='Set About Me', form=form)
 
 
@@ -676,13 +689,12 @@ def react_to_message():
 
 @app.route('/avatar/<username>')
 def avatar(username):
-    static_dir = os.path.join(STATIC_FOLDER, username)
+    static_dir = os.path.join(IMAGED,'users',username)
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
         if os.path.isfile(path):
             return send_from_directory(static_dir, f"pfp.{ext}")
-    # Default fallback
-    return send_from_directory("extra", f"noavatar.jpeg")
+    return send_from_directory("static", f"noavatar.jpeg")
 
 
 
@@ -797,7 +809,7 @@ def create_repo():
             new_repo = Repository(name=name, owner=current_user.username, description=form.description.data)
             new_repo.save_to_mongo()
             flash(f"Repository {name} created successfully!", "success")
-            return redirect(url_for("repo_view", username=current_user.username, reponame=name))
+            return redirect(url_for("repo_view", username=current_user.username, reponame=name,current_user=current_user))
         except subprocess.CalledProcessError:
             flash("Error initializing repository.", "danger")
             return render_template("forms/create_repo.html", form=form)
@@ -1014,7 +1026,7 @@ def repo_edit(username, reponame, ref, path):
         content = "[Binary content]"
 
     return render_template(
-        "forms/repo_edit.html",
+        "forms/templates/repo/repo_edit.html",
         repo=repo,
         ref=ref,
         path=path,

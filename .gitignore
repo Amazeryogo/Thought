@@ -3,5 +3,5 @@ run.sh
 __pycache__/
 IMAGES/
 secretkey.txt
-bluh/
+IMAGES/users/
 repos
