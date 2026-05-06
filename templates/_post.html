@@ -1,37 +1,70 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
 
-<div class="card border-active mx-auto mb-3" style="max-width: 75%">
-  <div class="card-body">
-    <h2 class="card-title" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
-    <p class="card-subtitle mb-2">by <a href="/{{post.username}}">{{ post.username }}</a></p>
-    <div class="card-text">{{ post | render_post_content | safe }}</div>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
 
-    {% if user == current_user %}
-      <a href="/deletepost?post_id={{post._id}}" onclick="return confirmDelete()">
-        <span class="material-symbols-outlined">cancel</span>
-      </a>
-      <a href="{{ url_for('post_view', post_id=post._id) }}">
-        <span class="material-symbols-outlined">add_comment</span>
-      </a>
-      <a href="{{ url_for('edit_post', post_id=post._id) }}">
-    <span class="material-symbols-outlined">edit</span>
-  </a>
-    {% else %}
-      <span class="like-btn material-symbols-outlined" data-id="{{ post._id }}">thumb_up</span>
-      <span id="like-count-{{ post._id }}">{{ post.likes }}</span>
-      <span class="dislike-btn material-symbols-outlined" data-id="{{ post._id }}">thumb_down</span>
-      <span id="dislike-count-{{ post._id }}">{{ post.dislikes }}</span>
-      <a href="{{ url_for('post_view', post_id=post._id) }}">
-        <span class="material-symbols-outlined">add_comment</span>
-      </a>
-    {% endif %}
+<div class="card shadow-sm border-0 rounded-4 mx-auto mb-4" style="max-width: 750px;">
+  <div class="card-body p-4">
 
-    <p class="card-subtitle mb-2 text-muted">{{ post.timestamp }}</p>
+    <h2 class="card-title fw-bold text-dark mb-1" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
+    <p class="card-subtitle mb-3">
+      by <a href="/{{post.username}}" class="text-decoration-none text-primary fw-semibold">{{ post.username }}</a>
+    </p>
+
+    <div class="card-text text-secondary mb-4 fs-6 post-content-wrapper" style="line-height: 1.6;">
+      {{ post | render_post_content | safe }}
+    </div>
+
+    <hr class="my-3 text-muted opacity-25">
+
+    <div class="d-flex justify-content-between align-items-center">
+
+      <small class="text-muted">{{ post.timestamp }}</small>
+
+      <div class="d-flex align-items-center gap-3">
+        {% if user == current_user %}
+          <a href="{{ url_for('edit_post', post_id=post._id) }}" class="text-decoration-none text-secondary" title="Edit Post">
+            <span class="material-symbols-outlined align-middle">edit</span>
+          </a>
+          <a href="{{ url_for('post_view', post_id=post._id) }}" class="text-decoration-none text-primary" title="View Comments">
+            <span class="material-symbols-outlined align-middle">add_comment</span>
+          </a>
+          <a href="/deletepost?post_id={{post._id}}" onclick="return confirmDelete()" class="text-decoration-none text-danger" title="Delete Post">
+            <span class="material-symbols-outlined align-middle">cancel</span>
+          </a>
+        {% else %}
+          <div class="d-flex align-items-center gap-2">
+            <span class="like-btn material-symbols-outlined text-success action-icon" data-id="{{ post._id }}" style="cursor: pointer;" title="Like">thumb_up</span>
+            <span id="like-count-{{ post._id }}" class="fw-bold text-dark">{{ post.likes }}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="dislike-btn material-symbols-outlined text-danger action-icon" data-id="{{ post._id }}" style="cursor: pointer;" title="Dislike">thumb_down</span>
+            <span id="dislike-count-{{ post._id }}" class="fw-bold text-dark">{{ post.dislikes }}</span>
+          </div>
+          <a href="{{ url_for('post_view', post_id=post._id) }}" class="text-decoration-none text-secondary" title="View Comments">
+            <span class="material-symbols-outlined align-middle">add_comment</span>
+          </a>
+        {% endif %}
+      </div>
+
+    </div>
+
   </div>
 </div>
 
+<style>
+  .post-content-wrapper img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+</style>
 
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
       integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"

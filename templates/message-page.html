@@ -9,19 +9,17 @@
             <a href="/messaging/dashboard" class="text-white mr-3">
                 <span class="material-symbols-outlined">arrow_back</span>
             </a>
-            <img src="{{ User.avatar(username) }}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+            <img src="{{ User.avatar(username) }}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;">
             <div class="flex-grow-1">
-                <h5 class="mb-0 fw-bold">{{ username }}</h5>
+                <h5 class="mb-0 fw-bold"><a href="/{{ username }}">{{ username }}</a></h5>
                 <small id="status-text" class="text-light opacity-75">{{ other_user.last_live() }}</small>
             </div>
         </div>
-
-        <div id="chat-box" class="card-body p-4 overflow-auto bg-light d-flex flex-column flex-grow-1" style="min-height: 0;">
+          <div id="chat-box" class="card-body p-4 bg-light d-flex flex-column" style="flex: 1 1 auto; max-height: 65vh; overflow-y: auto; overflow-x: hidden;">
             <div class="text-center my-3">
-                <button id="load-more" class="btn btn-sm btn-outline-secondary rounded-pill d-none">Load older messages</button>
-            </div>
-          <!-- Messages will be appended here -->
-        </div>
+            <button id="load-more" class="btn btn-sm btn-outline-secondary rounded-pill d-none">Load older messages</button>
+          </div>
+          </div>
 
         <div class="card-footer bg-white p-3 border-top flex-shrink-0">
           <form id="chat-form" onsubmit="return false;">
