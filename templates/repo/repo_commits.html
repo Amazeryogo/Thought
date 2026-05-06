@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('repo_view', username=repo.owner, reponame=repo.name) }}">{{ repo.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Commits</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body p-4">
+            <h1 class="card-title mb-4" style="font-family: 'Abril Fatface', cursive;">Commit History</h1>
+            <h6 class="text-muted mb-4">Branch: {{ ref }}</h6>
+
+            <div class="commit-history mt-4">
+                {% for commit in commits %}
+                    <div class="commit-item d-flex">
+                        <div class="commit-graph text-muted pr-3" style="font-family: monospace; white-space: pre; font-size: 1.2rem; line-height: 1.5;">
+                            {{ commit.graph }}
+                        </div>
+                        {% if commit.hash %}
+                        <div class="commit-card flex-grow-1 mb-3">
+                            <div class="card border-0 bg-light rounded-3 shadow-sm">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1 font-weight-bold">{{ commit.message }}</h6>
+                                            <div class="d-flex align-items-center mt-2">
+                                                <img src="{{ User.avatar(commit.author) }}" class="rounded-circle mr-2" style="width: 24px; height: 24px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+                                                <span class="small"><strong>{{ commit.author }}</strong> committed on {{ commit.date.strftime('%b %d, %Y') }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <code class="badge badge-secondary p-2">{{ commit.hash[:7] }}</code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="mb-3" style="height: 20px;"></div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-center text-muted py-5">No commit history found.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.commit-graph {
+    min-width: 50px;
+    display: flex;
+    justify-content: flex-start;
+}
+.commit-item {
+    position: relative;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4" style="height: 85vh;">
+  <div class="row justify-content-center h-100">
+    <div class="col-md-10 col-lg-8 d-flex flex-column h-100">
+      <div class="card shadow-lg border-0 rounded-4 overflow-hidden d-flex flex-column h-100">
+        <div class="card-header text-black p-3 d-flex align-items-center flex-shrink-0">
+            <a href="/messaging/dashboard" class="text-white mr-3">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </a>
+            <img src="{{ User.avatar(username) }}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;">
+            <div class="flex-grow-1">
+                <h5 class="mb-0 fw-bold"><a href="/{{ username }}">{{ username }}</a></h5>
+                <small id="status-text" class="text-black opacity-75">{{ other_user.last_live() }}</small>
+            </div>
+        </div>
+          <div id="chat-box" class="card-body p-4 bg-light d-flex flex-column" style="flex: 1 1 auto; max-height: 65vh; overflow-y: auto; overflow-x: hidden;">
+            <div class="text-center my-3">
+            <button id="load-more" class="btn btn-sm btn-outline-secondary rounded-pill d-none">Load older messages</button>
+          </div>
+          </div>
+
+        <div class="card-footer bg-white p-3 border-top flex-shrink-0">
+          <form id="chat-form" onsubmit="return false;">
+            <div class="input-group">
+              <input id="chatInput" type="text" class="form-control border-0 bg-light rounded-pill px-4" placeholder="Type your message..." autocomplete="off">
+              <button id="sendBtn" class="btn btn-primary rounded-circle ml-2 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;" type="submit">
+                <span class="material-symbols-outlined">send</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    const RECIPIENT = "{{ username }}";
+    const CURRENT_USER = "{{ current_user.username }}";
+</script>
+<script src="{{ url_for('static', filename='js/message-page.js') }}"></script>
+
+<style>
+    body, html { height: 100%; }
+    .card-body {
+        scrollbar-width: thin;
+        scrollbar-color: #ced4da #f8f9fa;
+    }
+    .card-body::-webkit-scrollbar { width: 6px; }
+    .card-body::-webkit-scrollbar-track { background: #f8f9fa; }
+    .card-body::-webkit-scrollbar-thumb { background-color: #ced4da; border-radius: 20px; }
+
+    .message-bubble {
+        max-width: 75%;
+        padding: 10px 15px;
+        border-radius: 20px;
+        margin-bottom: 2px;
+        position: relative;
+        cursor: pointer;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+    .message-wrapper:hover .message-actions {
+        opacity: 1 !important;
+    }
+    .message-actions {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+    }
+    .action-icon {
+        font-size: 1.2rem;
+        color: #6c757d;
+        cursor: pointer;
+    }
+    .action-icon:hover {
+        color: #007bff;
+    }
+    .msg-received {
+        align-self: flex-start;
+        background-color: #ffffff;
+        border-bottom-left-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .msg-sent {
+        align-self: flex-end;
+        background-color: #007bff;
+        color: white;
+        border-bottom-right-radius: 5px;
+    }
+    .msg-meta {
+        font-size: 0.7rem;
+        margin-top: 4px;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
