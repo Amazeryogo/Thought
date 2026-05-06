@@ -1,4 +1,4 @@
-import os
+
 from models import *
 from forms import *
 from werkzeug.utils import secure_filename
@@ -6,7 +6,6 @@ from werkzeug.security import generate_password_hash
 import re
 import subprocess
 import shutil
-import base64
 import markdown
 from datetime import datetime
 from datetime import datetime as bruh
@@ -114,7 +113,7 @@ def post_view(post_id):
     form = CommentForm()
 
     if form.validate_on_submit():
-        if len(form.content.data) <= COMMENT_MAX:
+        if len(form.content.data) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
@@ -124,7 +123,10 @@ def post_view(post_id):
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
-            flash('comment reply too large','warning')
+            if len(form.content.data) > COMMENT_MAX:
+                flash('comment reply too large','warning')
+            else:
+                flash('comment reply too small','warning')
     # Fetch comments for this post
     all_comments = Comment.find_by_post_id(post_id)
 
@@ -162,7 +164,7 @@ def reply_to_comment(comment_id):
 
     content = request.form.get("reply_content")
     if content:
-        if len(content) <= COMMENT_MAX:
+        if len(content) in range(COMMENT_MIN,COMMENT_MAX):
             Comment.create(
             post_id=parent_comment.post_id,
             user_id=current_user._id,
@@ -172,7 +174,10 @@ def reply_to_comment(comment_id):
         )
             flash("Reply posted!", "success")
         else:
-            flash("comment too large", 'warning')
+            if len(content) > COMMENT_MAX:
+                flash("comment too large", 'warning')
+            else:
+                flash("comment too small",'warning')
     return redirect(request.referrer)
 
 @app.route("/comment/delete/<comment_id>", methods=["POST"])
@@ -305,12 +310,15 @@ def register():
             find_user = User.get_by_email(email)
             if find_user is None:
                 if len(username) in range(USERNAME_MIN,USERNAME_MAX+1):
-                    if len(request.form["password"]) <= PASSWORD_MAX:
+                    if len(request.form["password"]) in range(PASSWORD_MIN,PASSWORD_MAX+1):
                         User.register(username, email, password, invcode)
                         flash(f'Account created for {form.username.data}!', 'success')
                         return redirect(url_for('home'))
                     else:
-                        flash('password too long','warning')
+                        if len(request.form["password"]) < PASSWORD_MIN:
+                            flash('password must be at least 8 characters','warning')
+                        else:
+                            flash('password too long','warning')
                 else:
                     flash('username does not meet requirements')
             else:
@@ -368,7 +376,7 @@ def createnewpost():
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
 
-        if len(content) <= POST_MAX:
+        if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
                 username=current_user.username,
                 title=title,
@@ -381,7 +389,10 @@ def createnewpost():
             flash('Your post has been created!', 'success')
             return redirect('/me')
         else:
-            flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
+            if len(content) < POST_MIN:
+                flash('Your post is too short')
+            else:
+                flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
     return render_template('create_post.html', title='New Post', form=form)
 
 
@@ -451,7 +462,7 @@ def settings():
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
 
-        if len(aboutme) <= ABOUT_ME_MAX:
+        if len(aboutme) in range(ABOUT_ME_MIN,ABOUT_ME_MAX):
             User.addaboutme(current_user.username, aboutme)
             User.change_email(current_user.username, email)
 
@@ -481,8 +492,10 @@ def settings():
             flash('Your changes have been saved', 'success')
             return redirect('/me')
         else:
-            flash('Your "About Me" is too long.', 'warning')
-
+            if len(aboutme) > ABOUT_ME_MAX:
+                flash('Your "About Me" is too long.', 'warning')
+            else:
+                flash('Your "About Me" is too short.', 'warning')
     return render_template('settings.html', title='Set About Me', form=form)
 
 
@@ -1291,7 +1304,7 @@ def edit_post(post_id):
         form.content.data = post.content
 
     if form.validate_on_submit():
-        if len(form.content.data) <= POST_MAX:
+        if len(form.content.data) in range(POST_MIN,POST_MAX):
             db.postdb.update_one(
                 {"_id": post_id},
                 {
@@ -1304,7 +1317,9 @@ def edit_post(post_id):
             flash("Post updated successfully!", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
-            flash("Post content too long", "warning")
-
+            if len(form.content.data) > POST_MAX:
+                flash("Post content too long", "warning")
+            else:
+                flash("Post content too short", "warning")
     return render_template("edit_post.html", form=form)
 
