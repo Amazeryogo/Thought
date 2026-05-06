@@ -16,12 +16,11 @@
             </div>
         </div>
 
-        <div id="chat-box" class="card-body p-4 overflow-auto bg-light d-flex flex-column" style="height: 60vh;">
-            <div class="text-center my-3">
-                <button id="load-more" class="btn btn-sm btn-outline-secondary rounded-pill d-none">Load older messages</button>
-            </div>
-          <!-- Messages will be appended here -->
-        </div>
+        <div id="chat-box" class="card-body p-4 bg-light d-flex flex-column" style="flex: 1 1 auto; max-height: 65vh; overflow-y: auto; overflow-x: hidden;">
+    <div class="text-center my-3">
+        <button id="load-more" class="btn btn-sm btn-outline-secondary rounded-pill d-none">Load older messages</button>
+    </div>
+    </div>
 
         <div class="card-footer bg-white p-3 border-top">
           <form id="chat-form" onsubmit="return false;">
