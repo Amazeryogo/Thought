@@ -4,7 +4,7 @@
 <div class="container py-5">
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}'s Repos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}</a></li>
         {% if not path %}
             <li class="breadcrumb-item active" aria-current="page">{{ repo.name }}</li>
         {% else %}
@@ -158,10 +158,6 @@ git push -u origin main</pre>
 
             {% if readme_content %}
             <div class="mt-5 pt-4 border-top">
-                <div class="d-flex align-items-center mb-3">
-                    <span class="material-symbols-outlined mr-2 text-muted">menu_book</span>
-                    <h5 class="mb-0">README.md</h5>
-                </div>
                 <div class="markdown-body p-4 border rounded bg-white shadow-sm">
                     {{ readme_content|safe }}
                 </div>

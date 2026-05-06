@@ -6,9 +6,15 @@
         <div class="col-md-8 col-lg-6">
             <div class="card shadow rounded-4">
                 <div class="card-body">
-                    <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
-                        Edit Your Post
+                    {% if p == 0 %}
+                        <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
+                        Create Your Post!
                     </h2>
+                    {% else %}
+                        <h2 class="text-center mb-4" style="font-family: 'Abril Fatface', cursive;">
+                            Edit Your Post
+                        </h2>
+                    {% endif %}
 
                     <form method="POST">
                         {{ form.hidden_tag() }}

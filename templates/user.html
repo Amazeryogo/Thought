@@ -3,7 +3,6 @@
 {% block content %}
 <div class="text-center">
     <h1 class="mb-0" style="font-family: 'Abril Fatface', cursive;">{{ user.username }}</h1>
-    <p class="text-muted small">{{ user.last_live() }}</p>
 </div>
 
 <div class="container py-5">
@@ -13,6 +12,7 @@
                 <div class="card-body p-4 d-flex">
                     <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid rounded-circle me-4" style="width: 100px; height: 100px; object-fit: cover;">
                     <div class="flex-grow-1">
+                        <p class="text-muted small">{{ user.last_live() }}</p>
                         <p class="mb-3">{{ user.aboutme }}</p>
                         <p class="mb-1">
                             <strong>Followers:</strong>
