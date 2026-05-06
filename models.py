@@ -200,6 +200,8 @@ If you did not make this request then simply ignore this email and no changes wi
 '''
             mail.send(msg)
 
+def get_idd(username):
+    return db.userdb.find_one({"username": username})['_id']
 
 class Messages:
     def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):

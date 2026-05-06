@@ -16,7 +16,7 @@ from flask import request, jsonify, g
 
 @app.route('/image/posts/<user_id>/<image_name>')
 def image_post(user_id, image_name):
-    user_folder = os.path.join(IMAGED, "posts", user_id)
+    user_folder = os.path.join(IMAGED, 'users',user_id,'posts')
     os.makedirs(user_folder, exist_ok=True)
     save_path = os.path.join(user_folder, image_name)
     return send_file(save_path, mimetype='image/png')
@@ -215,7 +215,7 @@ def upload_image():
         if not files or all(f.filename == "" for f in files):
             flash("No selected files", "warning")
             return redirect(request.url)
-        user_folder = os.path.join(IMAGED, current_user._id)
+        user_folder = os.path.join(IMAGED, 'users', current_user._id,'images')
         os.makedirs(user_folder, exist_ok=True)
         saved_files = []
         for file in files:
@@ -237,7 +237,8 @@ def upload_image():
 @app.route("/image/<userid>/<imageuid>", methods=["GET", "POST"])
 @login_required
 def render_image(userid,imageuid):
-    return send_from_directory(IMAGED + "/" + userid, imageuid)
+    return send_from_directory(IMAGED + "/"
+                               'users/' + userid + "/"'images', imageuid)
 
 
 @app.route("/api/upload/message_image", methods=["POST"])
@@ -253,7 +254,7 @@ def upload_message_image():
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         unique_filename = f"{uuid.uuid4().hex}_{filename}"
-        user_folder = os.path.join(IMAGED, "messages", current_user._id)
+        user_folder = os.path.join(IMAGED, 'users',current_user._id,"messages")
         os.makedirs(user_folder, exist_ok=True)
         save_path = os.path.join(user_folder, unique_filename)
         file.save(save_path)
@@ -266,7 +267,7 @@ def upload_message_image():
 @app.route("/image/messages/<userid>/<imageuid>", methods=["GET"])
 @login_required
 def render_message_image(userid, imageuid):
-    return send_from_directory(os.path.join(IMAGED, "messages", userid), imageuid)
+    return send_from_directory(os.path.join(IMAGED,'users',userid, "messages"), imageuid)
 
 
 @app.route("/<username>")
@@ -285,7 +286,7 @@ def user(username):
     for post in posts:
         post['content'] = markdown.markdown(post['content'])
         p2.append(post)
-    image_dir = os.path.join(IMAGED, user._id)
+    image_dir = os.path.join(IMAGED,'users', user._id, 'images')
     user_images = []
     if os.path.exists(image_dir):
         user_images = [f for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
@@ -370,7 +371,7 @@ def createnewpost():
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
                     unique_filename = f"{uuid.uuid4().hex}_{filename}"
-                    user_folder = os.path.join(IMAGED, "posts", current_user._id)
+                    user_folder = os.path.join(IMAGED, 'users', current_user._id, "posts")
                     os.makedirs(user_folder, exist_ok=True)
                     save_path = os.path.join(user_folder, unique_filename)
                     file.save(save_path)
@@ -399,7 +400,7 @@ def createnewpost():
 @app.route("/image/posts/<userid>/<imageuid>", methods=["GET"])
 @login_required
 def render_post_image(userid, imageuid):
-    return send_from_directory(os.path.join(IMAGED, "posts", userid), imageuid)
+    return send_from_directory(os.path.join(IMAGED, 'users', userid, "posts"), imageuid)
 
 
 
@@ -474,7 +475,7 @@ def settings():
                     flash("Invalid file type", "danger")
                 else:
                     ext = file.filename.rsplit('.', 1)[1].lower()
-                    user_dir = os.path.join(IMAGED,'users',current_user.username)
+                    user_dir = os.path.join(IMAGED,'users',current_user._id)
                     os.makedirs(user_dir, exist_ok=True)
 
                     # Remove old avatars
@@ -689,7 +690,7 @@ def react_to_message():
 
 @app.route('/avatar/<username>')
 def avatar(username):
-    static_dir = os.path.join(IMAGED,'users',username)
+    static_dir = os.path.join(IMAGED,'users',get_idd(username))
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
         if os.path.isfile(path):
