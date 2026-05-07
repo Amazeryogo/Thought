@@ -117,7 +117,6 @@ def post_view(post_id):
             Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
-                username=current_user.username,
                 content=form.content.data
             )
             flash("Comment added.", "success")
@@ -167,7 +166,6 @@ def reply_to_comment(comment_id):
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
             post_id=parent_comment.post_id,
-            user_id=current_user._id,
             username=current_user.username,
             content=content,
             parent_comment_id=comment_id
@@ -197,21 +195,21 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm"}
+ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "gif", "mp4", "webm")
 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@app.route("/upload/image", methods=["GET", "POST"])
+@app.route("/upload", methods=["GET", "POST"])
 @login_required
-def upload_image():
+def upload_content():
     if request.method == "POST":
-        if "image[]" not in request.files:
+        if "media[]" not in request.files:
             flash("No files found", "danger")
             return redirect(request.url)
-        files = request.files.getlist("image[]")
+        files = request.files.getlist("media[]")
         if not files or all(f.filename == "" for f in files):
             flash("No selected files", "warning")
             return redirect(request.url)
@@ -231,14 +229,13 @@ def upload_image():
             flash("No valid image files uploaded!", "danger")
             return redirect("/me")
 
-    return render_template("forms/upload_image.html")
+    return render_template("forms/upload_content.html")
 
 
 @app.route("/image/<userid>/<imageuid>", methods=["GET", "POST"])
 @login_required
 def render_image(userid,imageuid):
-    return send_from_directory(IMAGED + "/"
-                               'users/' + userid + "/"'images', imageuid)
+    return send_from_directory(IMAGED + '/users/' + userid +'/images', imageuid)
 
 
 @app.route("/api/upload/message_image", methods=["POST"])
@@ -289,7 +286,7 @@ def user(username):
     image_dir = os.path.join(IMAGED,'users', user._id, 'images')
     user_images = []
     if os.path.exists(image_dir):
-        user_images = [f for f in os.listdir(image_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+        user_images = [f for f in os.listdir(image_dir) if f.lower().endswith(ALLOWED_EXTENSIONS)]
     return render_template(
         'user.html',
         user=user,
@@ -379,7 +376,6 @@ def createnewpost():
 
         if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
-                username=current_user.username,
                 title=title,
                 content=content,
                 timestamp=timestamp,
@@ -409,7 +405,7 @@ def render_post_image(userid, imageuid):
 def deletepost():
     x = request.args
     post_id = x.get("post_id")
-    db.postdb.delete_one({"_id": post_id, "username": current_user.username})
+    db.postdb.delete_one({"_id": post_id, "user_id": current_user._id})
     return redirect('/me')
 
 
@@ -420,7 +416,7 @@ def like():
     if not post_id:
         return jsonify({"success": False, "message": "Missing post ID"}), 400
 
-    Post.liked(_id=post_id, userx=current_user.username)
+    Post.liked(_id=post_id, userx=current_user._id)
     post = db.postdb.find_one({"_id": post_id})
     return jsonify({
         "success": True,
@@ -436,7 +432,7 @@ def dislike():
     if not post_id:
         return jsonify({"success": False, "message": "Missing post ID"}), 400
 
-    Post.disliked(_id=post_id, userx=current_user.username)
+    Post.disliked(_id=post_id, userx=current_user._id)
     post = db.postdb.find_one({"_id": post_id})
     return jsonify({
         "success": True,
@@ -453,20 +449,43 @@ def setaboutme():
 @app.route("/settings", methods=['GET', 'POST'])
 @login_required
 def settings():
-    form = AboutMeForm()
+    form = SettingsForm()
 
     if request.method == "GET":
-        form.content.data = User.get_aboutme(current_user.username)
+        form.username.data = current_user.username
+        form.content.data = User.get_aboutme(current_user._id)
         form.email.data = current_user.email
 
     if form.validate_on_submit():
+        username = form.username.data
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
-
-        if len(aboutme) in range(ABOUT_ME_MIN,ABOUT_ME_MAX+1):
-            User.addaboutme(current_user.username, aboutme)
-            User.change_email(current_user.username, email)
-
+        check = db.userdb.find_one({"username": form.username.data})
+        k = 0
+        if len(form.username.data) in range(USERNAME_MIN, USERNAME_MAX+1):
+            if len(aboutme) in range(ABOUT_ME_MIN, ABOUT_ME_MAX + 1):
+                if check is None:
+                    k = 1
+                else:
+                    if check['_id'] == current_user._id:
+                        k = 1
+                    else:
+                        k = 0
+                        flash('This username is already taken','warning')
+            else:
+                if len(aboutme) > ABOUT_ME_MAX:
+                    flash('Your "About Me" is too long.', 'warning')
+                else:
+                    flash('Your "About Me" is too short.', 'warning')
+        else:
+            if form.username.data > USERNAME_MAX:
+                flash('This username is too long.', 'warning')
+            else:
+                flash('This username is too short', 'warning')
+        if k == 1:
+            User.change_username(current_user._id, username)
+            User.addaboutme(current_user._id, aboutme)
+            User.change_email(current_user._id, email)
             file = request.files.get("pfp")
             if file:
                 if file.filename == "":
@@ -475,7 +494,7 @@ def settings():
                     flash("Invalid file type", "danger")
                 else:
                     ext = file.filename.rsplit('.', 1)[1].lower()
-                    user_dir = os.path.join(IMAGED,'users',current_user._id)
+                    user_dir = os.path.join(IMAGED, 'users', current_user._id)
                     os.makedirs(user_dir, exist_ok=True)
 
                     # Remove old avatars
@@ -492,12 +511,8 @@ def settings():
 
             flash('Your changes have been saved', 'success')
             return redirect('/me')
-        else:
-            if len(aboutme) > ABOUT_ME_MAX:
-                flash('Your "About Me" is too long.', 'warning')
-            else:
-                flash('Your "About Me" is too short.', 'warning')
-    return render_template('forms/settings.html', title='Set About Me', form=form)
+
+    return render_template('forms/settings.html', title='Settings', form=form)
 
 
 
@@ -558,7 +573,7 @@ def reset_token(token):
 @app.route("/messaging/dashboard", methods=['GET', 'POST'])
 @login_required
 def messagingdashboard():
-    conversations = Messages.get_conversations(current_user.username)
+    conversations = Messages.get_conversations(current_user._id)
     return render_template('messages/mdashboard.html', conversations=conversations, User=User)
 
 
@@ -568,7 +583,7 @@ def deletemsg():
     x = request.args
     msg_id = x.get("msg_id")
     is_ajax = x.get("ajax")
-    db.messagesdb.delete_one({"_id": msg_id, "sender":current_user.username})
+    db.messagesdb.delete_one({"_id": msg_id, "sender":current_user._id})
 
     if is_ajax:
         return jsonify({"success": True})
@@ -583,7 +598,7 @@ def message_page(username):
     other_user = User.get_by_username(username)
     if not other_user:
         abort(404)
-    return render_template("messages/message-page.html", username=username, other_user=other_user, User=User)
+    return render_template("messages/message-page.html", recipient=get_idd(username), other_user=other_user, User=User,username=username)
 
 @app.route("/api/messages")
 @login_required
@@ -594,7 +609,7 @@ def get_messages():
     if not user2:
         return jsonify([])
 
-    query = {"$or": [{"sender": current_user.username, "receiver": user2}, {"sender": user2, "receiver": current_user.username}]}
+    query = {"$or": [{"sender": current_user._id, "receiver": user2}, {"sender": user2, "receiver": current_user._id}]}
 
     if before:
         before_msg = db.messagesdb.find_one({"_id": before})
@@ -608,7 +623,7 @@ def get_messages():
         chats.reverse()
 
     # Automatically mark messages as read when fetched via API
-    Messages.mark_as_read(user2, current_user.username)
+    Messages.mark_as_read(user2, current_user._id)
     # Update current user's last_seen
     db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": dt.utcnow()}})
 
@@ -624,7 +639,7 @@ def send_message_v2():
     if not recipient or not content:
         return jsonify({"success": False, "error": "Missing data"}), 400
 
-    msg = Messages.send_message(current_user.username, recipient, content)
+    msg = Messages.send_message(sender=current_user._id, receiver=recipient, message=content)
     db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": dt.utcnow()}})
     return jsonify({"success": True, "message": msg})
 
@@ -642,7 +657,7 @@ def save_theme():
 @app.route("/api/conversations")
 @login_required
 def get_conversations_api():
-    conversations = Messages.get_conversations(current_user.username)
+    conversations = Messages.get_conversations(current_user._id)
     # Map to JSON serializable format
     res = []
     for c in conversations:
@@ -674,12 +689,12 @@ def react_to_message():
         reactions[emoji] = []
 
     # Toggle the user's reaction
-    if current_user.username in reactions[emoji]:
-        reactions[emoji].remove(current_user.username)
+    if current_user._id in reactions[emoji]:
+        reactions[emoji].remove(current_user._id)
         if not reactions[emoji]:
             del reactions[emoji]
     else:
-        reactions[emoji].append(current_user.username)
+        reactions[emoji].append(current_user._id)
 
     db.messagesdb.update_one(
         {"_id": message_id},
@@ -697,47 +712,48 @@ def avatar(username):
             return send_from_directory(static_dir, f"pfp.{ext}")
     return send_from_directory("static", f"noavatar.jpeg")
 
-
+app.jinja_env.globals.update(get_username2=get_username)
 
 
 @app.route("/follow/<username>", methods=["POST"])
 @login_required
 def toggle_follow(username):
-    if username == current_user.username:
+    v = get_idd(username)
+    if v == current_user._id:
         return jsonify({"success": False, "message": "You cannot follow yourself!"}), 400
 
-    target = db.userdb.find_one({"username": username})
+    target = db.userdb.find_one({"_id": v})
     if not target:
         return jsonify({"success": False, "message": "User not found!"}), 404
 
     is_following = db.userdb.find_one({
-        "username": username,
-        "followers": current_user.username
+        "_id": v,
+        "followers": current_user._id
     })
 
     if is_following:
         db.userdb.update_one(
-            {"username": username},
-            {"$pull": {"followers": current_user.username}}
+            {"_id": v},
+            {"$pull": {"followers": current_user._id}}
         )
         db.userdb.update_one(
-            {"username": current_user.username},
-            {"$pull": {"following": username}}
+            {"_id": current_user._id},
+            {"$pull": {"following": v}}
         )
         action = "unfollowed"
     else:
         db.userdb.update_one(
-            {"username": username},
-            {"$addToSet": {"followers": current_user.username}}
+            {"_id": v},
+            {"$addToSet": {"followers": current_user._id}}
         )
         db.userdb.update_one(
-            {"username": current_user.username},
-            {"$addToSet": {"following": username}}
+            {"_id": current_user._id},
+            {"$addToSet": {"following": v}}
         )
         action = "followed"
 
     # Get updated count
-    updated_user = db.userdb.find_one({"username": username})
+    updated_user = db.userdb.find_one({"_id": v})
     follower_count = len(updated_user.get("followers", []))
 
     return jsonify({
@@ -750,35 +766,45 @@ def toggle_follow(username):
 @app.route("/followers/<username>")
 @login_required
 def get_followers(username):
-    user = db.userdb.find_one({"username": username})
+    v = get_idd(username)
+    user = db.userdb.find_one({"_id": v})
     if not user:
         return jsonify({"success": False, "message": "User not found!"}), 404
+    j = []
+    if user.get("followers", []):
+        for i in user.get("followers", []):
+            j.append(get_username(i))
     return jsonify({
         "success": True,
         "type": "followers",
-        "users": user.get("followers", [])
+        "users": j
     })
 
 @app.route("/following/<username>")
 @login_required
 def get_following(username):
-    user = db.userdb.find_one({"username": username})
+    v = get_idd(username)
+    user = db.userdb.find_one({"_id": v})
     if not user:
         return jsonify({"success": False, "message": "User not found!"}), 404
+    j = []
+    if user.get("following", []):
+        for i in user.get("following", []):
+            j.append(get_username(i))
     return jsonify({
         "success": True,
         "type": "following",
-        "users": user.get("following", [])
+        "users": j
     })
 
 
 @app.route("/repos/<username>")
 @login_required
 def user_repos(username):
-    user = User.get_by_username(username)
+    user = User.get_by_id(get_idd(username))
     if not user:
         abort(404)
-    repos = Repository.find_by_owner(username)
+    repos = Repository.find_by_owner(get_idd(username))
     return render_template("repo/repos.html", user=user, repos=repos)
 
 
@@ -792,12 +818,12 @@ def create_repo():
             flash("Invalid repository name.", "danger")
             return render_template("forms/create_repo.html", form=form)
 
-        existing = Repository.get_by_owner_and_name(current_user.username, name)
+        existing = Repository.get_by_owner_and_name(current_user._id, name)
         if existing:
             flash("You already have a repository with that name.", "danger")
             return render_template("forms/create_repo.html", form=form)
 
-        repo_dir = os.path.join(REPOS_PATH, current_user.username, f"{name}.git")
+        repo_dir = os.path.join(REPOS_PATH, current_user._id, f"{name}.git")
         if os.path.exists(repo_dir):
             shutil.rmtree(repo_dir)
 
@@ -807,10 +833,10 @@ def create_repo():
             # Enable git-http-backend
             subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo_dir, check=True)
 
-            new_repo = Repository(name=name, owner=current_user.username, description=form.description.data)
+            new_repo = Repository(name=name, owner=current_user._id, description=form.description.data)
             new_repo.save_to_mongo()
             flash(f"Repository {name} created successfully!", "success")
-            return redirect(url_for("repo_view", username=current_user.username, reponame=name,current_user=current_user))
+            return redirect(url_for("repo_view", username=current_user._id, reponame=name,current_user=current_user))
         except subprocess.CalledProcessError:
             flash("Error initializing repository.", "danger")
             return render_template("forms/create_repo.html", form=form)
@@ -823,11 +849,12 @@ def create_repo():
 @app.route("/repo/<username>/<reponame>/tree/<ref>/<path:path>")
 @login_required
 def repo_view(username, reponame, ref=None, path=""):
-    repo = Repository.get_by_owner_and_name(username, reponame)
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
     if not repo:
         abort(404)
 
-    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    repo_dir = os.path.join(REPOS_PATH, v, f"{reponame}.git")
     if not ref:
         ref = get_git_default_branch(repo_dir)
 
@@ -878,11 +905,12 @@ def repo_view(username, reponame, ref=None, path=""):
 @app.route("/repo/<username>/<reponame>/commits/<ref>")
 @login_required
 def repo_commits(username, reponame, ref):
-    repo = Repository.get_by_owner_and_name(username, reponame)
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
     if not repo:
         abort(404)
 
-    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    repo_dir = os.path.join(REPOS_PATH, v, f"{reponame}.git")
     commits = get_commit_history(repo_dir, ref)
 
     return render_template(
@@ -897,11 +925,12 @@ def repo_commits(username, reponame, ref):
 @app.route("/repo/<username>/<reponame>/branches")
 @login_required
 def repo_branches(username, reponame):
-    repo = Repository.get_by_owner_and_name(username, reponame)
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
     if not repo:
         abort(404)
 
-    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    repo_dir = os.path.join(REPOS_PATH, v, f"{reponame}.git")
     try:
         result = subprocess.run(
             ["git", "for-each-ref", "--format=%(refname:short) %(authordate:relative) %(subject)", "refs/heads/"],
@@ -921,18 +950,18 @@ def repo_branches(username, reponame):
                 })
     except subprocess.CalledProcessError:
         branches = []
-
     return render_template("repo/repo_branches.html", repo=repo, branches=branches)
 
 
 @app.route("/repo/<username>/<reponame>/blob/<ref>/<path:path>")
 @login_required
 def repo_blob(username, reponame, ref, path):
-    repo = Repository.get_by_owner_and_name(username, reponame)
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
     if not repo:
         abort(404)
 
-    repo_dir = os.path.join(REPOS_PATH, username, f"{reponame}.git")
+    repo_dir = os.path.join(REPOS_PATH, v, f"{reponame}.git")
     blob_content = get_git_blob(repo_dir, ref, path)
 
     if blob_content is None:
@@ -955,12 +984,13 @@ def repo_blob(username, reponame, ref, path):
 @app.route("/repo/<username>/<reponame>/edit/<ref>/<path:path>", methods=["GET", "POST"])
 @login_required
 def repo_edit(username, reponame, ref, path):
-    repo = Repository.get_by_owner_and_name(username, reponame)
-    if not repo or repo.owner != current_user.username:
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
+    if not repo or repo.owner != current_user._id:
         flash("Unauthorized or repository not found.", "danger")
-        return redirect(url_for('repo_view', username=username, reponame=reponame))
+        return redirect(url_for('repo_view', username=v, reponame=reponame))
 
-    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), v, f"{reponame}.git")
 
     if request.method == "POST":
         new_path = request.form.get("path", path)
@@ -1039,9 +1069,9 @@ def repo_edit(username, reponame, ref, path):
 @login_required
 def delete_repo(repo_id):
     repo = Repository.get_by_id(repo_id)
-    if not repo or repo.owner != current_user.username:
+    if not repo or repo.owner != current_user._id:
         flash("Unauthorized or repository not found.", "danger")
-        return redirect(url_for("user_repos", username=current_user.username))
+        return redirect(url_for("user_repos", username=current_user._id))
 
     repo_dir = os.path.join(REPOS_PATH, repo.owner, f"{repo.name}.git")
     if os.path.exists(repo_dir):
@@ -1049,9 +1079,7 @@ def delete_repo(repo_id):
 
     db.reposdb.delete_one({"_id": repo_id})
     flash(f"Repository {repo.name} deleted.", "success")
-    return redirect(url_for("user_repos", username=current_user.username))
-
-
+    return redirect(url_for("user_repos", username=current_user._id))
 def get_git_default_branch(repo_dir):
     try:
         # Check symbolic-ref first
@@ -1204,12 +1232,13 @@ def get_commit_history(repo_dir, ref):
 @app.route("/git/<username>/<reponame>.git/<path:rest>", methods=["GET", "POST"])
 def git_backend(username, reponame, rest):
     # Fetch repository (now case-insensitive)
-    repo = Repository.get_by_owner_and_name(username, reponame)
+    v = get_idd(username)
+    repo = Repository.get_by_owner_and_name(v, reponame)
     if not repo:
         abort(404)
 
     # Use canonical names
-    username = repo.owner
+    username = get_username(repo.owner)
     reponame = repo.name
 
     # Simple Basic Auth for push operations using git_token
@@ -1228,7 +1257,7 @@ def git_backend(username, reponame, rest):
         if not authenticated_user or authenticated_user.username.lower() != username.lower():
             return Response("Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="Git Login"'})
 
-    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), username, f"{reponame}.git")
+    repo_dir = os.path.join(os.path.abspath(REPOS_PATH), v, f"{reponame}.git")
 
     env = os.environ.copy()
     env["GIT_PROJECT_ROOT"] = os.path.dirname(repo_dir)
@@ -1323,160 +1352,3 @@ def edit_post(post_id):
             else:
                 flash("Post content too short", "danger")
     return render_template("forms/edit_post.html", form=form, p=p)
-
-
-
-def generate_jwt(user_id):
-    payload = {
-        "user_id": user_id,
-        "exp": dt.utcnow() + timedelta(seconds=1)
-    }
-    return jwt.encode(payload, app.config['JWT_SECRET'], algorithm=app.config['JWT_ALGORITHM'])
-
-# Helper: Decorator to protect API routes
-def jwt_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        token = None
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-        if not token:
-            return jsonify({"message": "Missing token"}), 401
-        try:
-            data = jwt.decode(token, app.config['JWT_SECRET'], algorithms=[app.config['JWT_ALGORITHM']])
-            user = User.get_by_id(data["user_id"])
-            if not user:
-                raise Exception("User not found")
-            g.current_user = user
-        except Exception as e:
-            return jsonify({"message": "Invalid or expired token", "error": str(e)}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route("/api/login", methods=["POST"])
-def api_login():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-    user = User.get_by_username(username)
-    if user and User.login_valid(username, password):
-        token = generate_jwt(user.get_id())
-        return jsonify({"success": True, "token": token, "username": username})
-    return jsonify({"success": False, "message": "Invalid credentials"}), 401
-
-@app.route('/api/me', methods=['GET'])
-@jwt_required
-def get_me():
-    user = g.current_user
-    return jsonify({
-        "username": user.username,
-        "email": user.email,
-        "aboutme": user.aboutme,
-        "avatar": User.avatar(user.username)
-    })
-
-@app.route('/api/user/<username>', methods=['GET'])
-@jwt_required
-def get_user_profile(username):
-    user = User.get_by_username(username)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    return jsonify({
-        "username": user.username,
-        "email": user.email,
-        "aboutme": user.aboutme,
-        "followers": user.get_followers(),
-        "following": user.get_following(),
-        "avatar": User.avatar(user.username)
-    })
-
-@app.route('/api/user/<username>/follow', methods=['POST'])
-@jwt_required
-def api_toggle_follow(username):
-    if username == g.current_user.username:
-        return jsonify({"success": False, "message": "You cannot follow yourself!"}), 400
-
-    target = db.userdb.find_one({"username": username})
-    if not target:
-        return jsonify({"success": False, "message": "User not found!"}), 404
-
-    is_following = db.userdb.find_one({
-        "username": username,
-        "followers": g.current_user.username
-    })
-
-    if is_following:
-        db.userdb.update_one({"username": username}, {"$pull": {"followers": g.current_user.username}})
-        db.userdb.update_one({"username": g.current_user.username}, {"$pull": {"following": username}})
-        action = "unfollowed"
-    else:
-        db.userdb.update_one({"username": username}, {"$addToSet": {"followers": g.current_user.username}})
-        db.userdb.update_one({"username": g.current_user.username}, {"$addToSet": {"following": username}})
-        action = "followed"
-
-    updated_user = db.userdb.find_one({"username": username})
-    follower_count = len(updated_user.get("followers", []))
-
-    return jsonify({
-        "success": True,
-        "action": action,
-        "is_following": not is_following,
-        "follower_count": follower_count
-    })
-
-@app.route('/api/posts', methods=['GET'])
-@jwt_required
-def get_all_posts():
-    posts = db.postdb.find().sort("timestamp", -1)
-    result = []
-    for post in posts:
-        result.append({
-            "_id": post["_id"],
-            "username": post["username"],
-            "title": post["title"],
-            "content": post["content"],
-            "timestamp": post["timestamp"],
-            "likes": post.get("likes", 0),
-            "dislikes": post.get("dislikes", 0)
-        })
-    return jsonify(result)
-
-@app.route('/api/post/<post_id>/like', methods=['POST'])
-@jwt_required
-def api_like_post(post_id):
-    Post.liked(_id=post_id, userx=g.current_user.username)
-    post = db.postdb.find_one({"_id": post_id})
-    return jsonify({
-        "success": True,
-        "likes": post.get("likes", 0),
-        "dislikes": post.get("dislikes", 0)
-    })
-
-@app.route('/api/post/<post_id>/dislike', methods=['POST'])
-@jwt_required
-def api_dislike_post(post_id):
-    Post.disliked(_id=post_id, userx=g.current_user.username)
-    post = db.postdb.find_one({"_id": post_id})
-    return jsonify({
-        "success": True,
-        "likes": post.get("likes", 0),
-        "dislikes": post.get("dislikes", 0)
-    })
-
-@app.route('/api/messages/<username>', methods=['GET'])
-@jwt_required
-def get_chat_with_user(username):
-    messages = Messages.get_chat(g.current_user.username, username)
-    return jsonify([m.json() for m in messages])
-
-@app.route('/api/message/send', methods=['POST'])
-@jwt_required
-def send_message():
-    data = request.get_json()
-    receiver = data.get('receiver')
-    message = data.get('message')
-    if not receiver or not message:
-        return jsonify({"error": "Missing receiver or message"}), 400
-    msg = Messages.send_message(g.current_user.username, receiver, message)
-    return jsonify(msg)

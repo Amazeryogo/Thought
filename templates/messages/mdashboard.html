@@ -12,19 +12,19 @@
                     {% if conversations %}
                         <div class="list-group list-group-flush">
                             {% for conv in conversations %}
-                                <a href="/message/{{ conv._id }}" class="list-group-item list-group-item-action p-4 border-bottom">
+                                <a href="/message/{{ get_username2(conv._id) }}" class="list-group-item list-group-item-action p-4 border-bottom">
                                     <div class="row align-items-center">
                                         <div class="col-auto">
-                                            <img src="{{ User.avatar(conv._id) }}" class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
+                                            <img src="{{ User.avatar(get_username2(conv._id)) }}" class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;" onerror="this.src='/static/noavatar.jpeg'">
                                         </div>
                                         <div class="col min-width-0">
                                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <h5 class="mb-0 fw-bold text-truncate">{{ conv._id }}</h5>
+                                                <h5 class="mb-0 fw-bold text-truncate">{{ get_username2(conv._id) }}</h5>
                                                 <small class="text-muted">{{ conv.last_message.timestamp | format_timestamp }}</small>
                                             </div>
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <p class="mb-0 text-muted text-truncate" style="max-width: 80%;">
-                                                    {% if conv.last_message.sender == current_user.username %}
+                                                    {% if conv.last_message.sender == current_user._id %}
                                                         <span class="text-primary font-weight-bold">You:</span>
                                                     {% endif %}
                                                     {{ conv.last_message.message }}

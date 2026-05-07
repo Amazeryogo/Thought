@@ -53,7 +53,9 @@ class User(UserMixin):
             if "git_token" not in data:
                 db.userdb.update_one({"_id": user._id}, {"$set": {"git_token": user.git_token}})
             return user
-
+    @classmethod
+    def change_username(cls,_id,username):
+        db.userdb.update_one({"_id": _id}, {"$set": {"username": username}})
     def last_live(self):
         if not self.last_seen:
             return "Never"
@@ -83,12 +85,12 @@ class User(UserMixin):
             return f"Last seen {int(seconds // 86400)}d ago"
 
     @classmethod
-    def addaboutme(cls, username, aboutme):
-        db.userdb.update_one({"username": username}, {"$set": {"aboutme": aboutme}})
+    def addaboutme(cls, _id, aboutme):
+        db.userdb.update_one({"_id": _id}, {"$set": {"aboutme": aboutme}})
 
     @classmethod
-    def get_aboutme(cls, username):
-        data = db.userdb.find_one({"username": username})
+    def get_aboutme(cls, _id):
+        data = db.userdb.find_one({"_id": _id})
         if data is not None:
             return data["aboutme"]
         else:
@@ -110,10 +112,10 @@ class User(UserMixin):
             return user
 
     @classmethod
-    def change_email(cls, username, email):
-        existing_user = db.userdb.find_one({"email": email})
+    def change_email(cls, _id, email):
+        existing_user = db.userdb.find_one({"_id": _id})
         if existing_user is None:
-            db.userdb.update_one({"username": username}, {"$set": {"email": email}})
+            db.userdb.update_one({"_id": _id}, {"$set": {"email": email}})
             return True
         else:
             return False
@@ -152,8 +154,8 @@ class User(UserMixin):
         }
 
     @classmethod
-    def avatar(cls, username):
-        return f'/avatar/{username}'
+    def avatar(cls, _id):
+        return f'/avatar/{_id}'
 
     def get_followers_number(self):
         return len(self.get_followers())
@@ -199,10 +201,10 @@ class User(UserMixin):
 If you did not make this request then simply ignore this email and no changes will be made.
 '''
             mail.send(msg)
-
 def get_idd(username):
     return db.userdb.find_one({"username": username})['_id']
-
+def get_username(_id):
+    return db.userdb.find_one({"_id": _id})['username']
 class Messages:
     def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
         self.sender = sender
@@ -259,15 +261,15 @@ class Messages:
         )
 
     @classmethod
-    def get_conversations(cls, username):
+    def get_conversations(cls, _id):
         # Optimized to get conversations with last message and unread count
         pipeline = [
-            {"$match": {"$or": [{"sender": username}, {"receiver": username}]}},
+            {"$match": {"$or": [{"sender": _id}, {"receiver": _id}]}},
             {"$sort": {"timestamp": -1}},
             {"$group": {
                 "_id": {
                     "$cond": [
-                        {"$eq": ["$sender", username]},
+                        {"$eq": ["$sender", _id]},
                         "$receiver",
                         "$sender"
                     ]
@@ -276,7 +278,7 @@ class Messages:
                 "unread_count": {
                     "$sum": {
                         "$cond": [
-                            {"$and": [{"$eq": ["$receiver", username]}, {"$eq": ["$read", False]}]},
+                            {"$and": [{"$eq": ["$receiver", _id]}, {"$eq": ["$read", False]}]},
                             1,
                             0
                         ]
@@ -291,8 +293,8 @@ class Messages:
     def get_users(self):
         # Keeping for backward compatibility if needed, but get_conversations is better
         users = []
-        for i in db.messagesdb.find({"$or": [{"sender": current_user.username}, {"receiver": current_user.username}]}):
-            other = i['receiver'] if i['sender'] == current_user.username else i['sender']
+        for i in db.messagesdb.find({"$or": [{"sender": current_user._id}, {"receiver": current_user._id}]}):
+            other = i['receiver'] if i['sender'] == current_user._id else i['sender']
             if other not in users:
                 users.append(other)
         return users
@@ -320,11 +322,11 @@ class Messages:
 
 
 class Post:
-    def __init__(self, username, title, content, timestamp, user_id, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
+    def __init__(self, title, content, timestamp, user_id, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
         self.title = title
         self.content = content
         self.user_id = user_id
-        self.username = username
+        self.username = get_username(user_id)
         self.timestamp = timestamp
         self.likes = likes
         self.liked_by = liked_by if liked_by is not None else []
@@ -414,11 +416,11 @@ class Post:
 
 
 class Comment:
-    def __init__(self, post_id, user_id, username, content, parent_comment_id=None, _id=None, timestamp=None,
+    def __init__(self, username, post_id, user_id, content, parent_comment_id=None, _id=None, timestamp=None,
                  likes=None, liked_by=None):
         self.post_id = post_id
         self.user_id = user_id
-        self.username = username
+        self.username = get_username(user_id)
         self.content = content
         self.parent_comment_id = parent_comment_id
 
@@ -538,3 +540,4 @@ class Repository:
     def find_by_owner(cls, owner):
         repos_data = db.reposdb.find({"owner": re.compile(f"^{re.escape(owner)}$", re.I)}).sort("timestamp", -1)
         return [cls(**data) for data in repos_data]
+

@@ -96,13 +96,20 @@
         {% for img in user_images %}
         <div class="col-6 col-md-4 col-lg-3">
             <div class="card border-0 shadow-sm">
-                <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
+                {% if img.lower().endswith(('.mp4', '.webm', '.ogg', '.mov')) %}
+                    <video class="card-img-top img-fluid rounded" controls>
+                        <source src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                {% else %}
+                    <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}" class="card-img-top img-fluid rounded" alt="User Upload">
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-center text-muted">No images uploaded yet.</p>
+    <p class="text-center text-muted">No content uploaded yet.</p>
     {% endif %}
 </div>
 

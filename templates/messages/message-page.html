@@ -11,7 +11,7 @@
             </a>
             <img src="{{ User.avatar(username) }}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;">
             <div class="flex-grow-1">
-                <h5 class="mb-0 fw-bold"><a href="/{{ username }}">{{ username }}</a></h5>
+                <h5 class="mb-0 fw-bold"><a href="/{{ other_user.username }}">{{ other_user.username }}</a></h5>
                 <small id="status-text" class="text-black opacity-75">{{ other_user.last_live() }}</small>
             </div>
         </div>
@@ -37,8 +37,8 @@
 </div>
 
 <script>
-    const RECIPIENT = "{{ username }}";
-    const CURRENT_USER = "{{ current_user.username }}";
+    const RECIPIENT = "{{ recipient }}";
+    const CURRENT_USER = "{{ current_user._id }}";
 </script>
 <script src="{{ url_for('static', filename='js/message-page.js') }}"></script>
 

@@ -4,7 +4,7 @@
 <div class="container py-5">
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=repo.owner) }}">{{ repo.owner }}</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('user_repos', username=get_username2(repo.owner)) }}">{{ get_username2(repo.owner) }}</a></li>
         {% if not path %}
             <li class="breadcrumb-item active" aria-current="page">{{ repo.name }}</li>
         {% else %}

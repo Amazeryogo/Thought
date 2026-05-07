@@ -13,6 +13,7 @@
                     <form method="POST" enctype="multipart/form-data">
                         {{ form.hidden_tag() }}
                         {% import "bootstrap/wtf.html" as wtf %}
+                        {{ wtf.form_field(form.username) }}
                         {{ wtf.form_field(form.email) }}
                         {{ wtf.form_field(form.content) }}
 
