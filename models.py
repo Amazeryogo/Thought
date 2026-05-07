@@ -113,7 +113,7 @@ class User(UserMixin):
 
     @classmethod
     def change_email(cls, _id, email):
-        existing_user = db.userdb.find_one({"_id": _id})
+        existing_user = db.userdb.find_one({"email": email})
         if existing_user is None:
             db.userdb.update_one({"_id": _id}, {"$set": {"email": email}})
             return True
