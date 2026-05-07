@@ -7,12 +7,10 @@ import subprocess
 import shutil
 import markdown
 from datetime import datetime as dt
-import jwt
-from datetime import timedelta
-from functools import wraps
 from core import app, db
-from flask import request, jsonify, g
-
+from flask import request, jsonify
+from hashlib import md5
+import urllib.request
 
 @app.route('/image/posts/<user_id>/<image_name>')
 def image_post(user_id, image_name):
@@ -70,7 +68,7 @@ def load_user(user_id):
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
+    posts = db.postdb.find().sort("timestamp", ASCENDING).limit(10)
     p2 = []
     for i in posts:
         i['content'] = markdown.markdown(i['content'])
@@ -287,13 +285,21 @@ def user(username):
     user_images = []
     if os.path.exists(image_dir):
         user_images = [f for f in os.listdir(image_dir) if f.lower().endswith(ALLOWED_EXTENSIONS)]
+    video = []
+    non_video = []
+    for k in user_images:
+        if k.lower().endswith(("png", "jpg", "jpeg", "gif")):
+            non_video.append(k)
+        else:
+            video.append(k)
     return render_template(
         'user.html',
         user=user,
         posts=p2,
         avatar=avatar,
         aboutme=aboutme,
-        user_images=user_images
+        videos = video,
+        non_videos = non_video,
     )
 
 @app.route("/register", methods=['GET', 'POST'])
@@ -362,7 +368,7 @@ def createnewpost():
         timestamp = dt.now().strftime('%H:%M:%S %Y-%m-%d')
 
         image_urls = []
-        if "images" in request.files:
+        if "images" or "Images" in request.files:
             files = request.files.getlist("images")
             for file in files:
                 if file and allowed_file(file.filename):
@@ -373,7 +379,6 @@ def createnewpost():
                     save_path = os.path.join(user_folder, unique_filename)
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
-
         if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
                 title=title,
@@ -461,6 +466,15 @@ def settings():
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
         check = db.userdb.find_one({"username": form.username.data})
+        if current_user.username == username:
+            pass
+        else:
+            db.postdb.update_many({"user_id": current_user._id},
+                {
+                    "$set": {
+                        "username": username,
+                    }
+                })
         k = 0
         if len(form.username.data) in range(USERNAME_MIN, USERNAME_MAX+1):
             if len(aboutme) in range(ABOUT_ME_MIN, ABOUT_ME_MAX + 1):
@@ -478,7 +492,7 @@ def settings():
                 else:
                     flash('Your "About Me" is too short.', 'warning')
         else:
-            if form.username.data > USERNAME_MAX:
+            if len(form.username.data) > USERNAME_MAX:
                 flash('This username is too long.', 'warning')
             else:
                 flash('This username is too short', 'warning')
@@ -706,11 +720,28 @@ def react_to_message():
 @app.route('/avatar/<username>')
 def avatar(username):
     static_dir = os.path.join(IMAGED,'users',get_idd(username))
+    k = 0
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
         if os.path.isfile(path):
             return send_from_directory(static_dir, f"pfp.{ext}")
-    return send_from_directory("static", f"noavatar.jpeg")
+            k = 1
+        else:
+            k = 0
+    if k == 0:
+        j = User.get_email(get_idd(username))
+        if j:
+            digest = md5(j.lower().encode('utf-8')).hexdigest()
+            url = 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
+                digest, 128)
+            os.makedirs(static_dir, exist_ok=True)
+            with urllib.request.urlopen(url) as response:
+                image_data = response.read()
+                with open(path, "wb") as file:
+                    file.write(image_data)
+            return send_from_directory(static_dir, f"pfp.{ext}")
+    return None
+
 
 app.jinja_env.globals.update(get_username2=get_username)
 
@@ -1127,7 +1158,6 @@ def list_git_tree(repo_dir, ref, path=""):
         lines = result.stdout.strip().splitlines()
         entries = []
         for line in lines:
-            # Format: <mode> <type> <object> <size>    <file>
             parts = line.split(None, 4)
             if len(parts) < 5:
                 continue

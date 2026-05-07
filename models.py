@@ -119,7 +119,9 @@ class User(UserMixin):
             return True
         else:
             return False
-
+    @classmethod
+    def get_email(cls, _id):
+        return db.userdb.find_one({"_id": _id})["email"]
     @staticmethod
     def login_valid(username, password):
         verify_user = User.get_by_username(username)
