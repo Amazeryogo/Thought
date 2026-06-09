@@ -2,20 +2,18 @@ import os
 import flask_bootstrap
 from flask import *
 from flask_login import *
-from flask_pymongo import *
 from flask_mail import Mail
+from database import Database, ASCENDING, DESCENDING
 
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
-app.config["MONGO_URI"] = os.environ.get("MONGO_URI")
-mongo = PyMongo(app)
 login = LoginManager(app)
 login.login_view = '/login'
 app.config['TESTING'] = False
-db = mongo.db
+db = Database()
 flask_bootstrap.Bootstrap(app)
 
 @app.context_processor
