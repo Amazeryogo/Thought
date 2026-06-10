@@ -14,19 +14,22 @@ from flask import request, jsonify
 from hashlib import md5
 from functools import wraps
 import urllib.request
-def rate_limit(limit=10, period=60):
+def rate_limit(limit=500, period=60):
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
             if current_user.is_authenticated:
                 key = f"rate_limit:{current_user._id}:{f.__name__}"
                 now = time.time()
-                # Use db for rate limiting state
-                db.ratelimits.delete_many({"key": key, "timestamp": {"$lt": now - period}})
-                calls = len(list(db.ratelimits.find({"key": key})))
-                if calls >= limit:
-                    return jsonify({"error": "Rate limit exceeded"}), 429
-                db.ratelimits.insert_one({"key": key, "timestamp": now})
+                try:
+                    db.ratelimits.delete_many({"key": key, "timestamp": {"$lt": now - period}})
+                    calls = len(list(db.ratelimits.find({"key": key})))
+                    if calls >= limit:
+                        flash("You are doing that too much. Please wait a moment.", "warning")
+                        return redirect(request.referrer or url_for('home'))
+                    db.ratelimits.insert_one({"key": key, "timestamp": now})
+                except Exception as e:
+                    pass # Silently fail rate limiting if DB is down
             return f(*args, **kwargs)
         return wrapped
     return decorator
@@ -574,7 +577,7 @@ def login():
 
 @app.route("/upload/post", methods=['GET', 'POST'])
 @login_required
-@rate_limit(limit=5, period=300) # Limit post creation
+@rate_limit(limit=50, period=300) # Limit post creation
 def createnewpost():
     form = PostForm()
     # Populate communities
@@ -632,8 +635,15 @@ def createnewpost():
                 "is_draft": is_draft,
                 "group_id": post_to if post_to != 'account' else None
             }
-            res = db.postdb.insert_one(new_post_data)
-            new_post = Post(**res)
+            try:
+                res = db.postdb.insert_one(new_post_data)
+                if not res:
+                    flash("Failed to save post. Please try again.", "danger")
+                    return render_template('forms/edit_post.html', form=form, p=p)
+                new_post = Post(**res)
+            except Exception as e:
+                flash(f"Database error: {e}", "danger")
+                return render_template('forms/edit_post.html', form=form, p=p)
 
             # Parse hashtags
             hashtags = re.findall(r'#(\w+)', content)
@@ -1253,7 +1263,11 @@ def react_to_message():
 
 @app.route('/avatar/<username>')
 def avatar(username):
-    static_dir = os.path.join(IMAGED,'users',get_idd(username))
+    uid = get_idd(username)
+    if not uid:
+        return send_from_directory('static', 'noavatar.jpeg')
+
+    static_dir = os.path.join(IMAGED,'users',uid)
     k = 0
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
@@ -1315,13 +1329,13 @@ def toggle_follow(username):
             action = "followed"
 
     # Get updated count
-    updated_user = db.userdb.find_one({"_id": v})
-    follower_count = len(updated_user.get("followers", []))
+    updated_user_data = db.userdb.find_one({"_id": v})
+    follower_count = len(updated_user_data.get("followers", []))
 
     return jsonify({
         "success": True,
         "action": action,
-        "is_following": not is_following,
+        "is_following": current_user._id in updated_user_data.get("followers", []),
         "follower_count": follower_count
     })
 

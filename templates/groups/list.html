@@ -12,7 +12,9 @@
         <div class="col">
             <div class="card h-100 shadow-sm rounded-4">
                 <div class="card-body">
-                    <h5 class="card-title">{{ g.name }}</h5>
+                    <h5 class="card-title">
+                        <a href="{{ url_for('group_view', group_id=g._id) }}" class="text-decoration-none text-dark">{{ g.name }}</a>
+                    </h5>
                     <p class="card-text text-muted">{{ g.description }}</p>
                     <small class="d-block mb-3 text-muted">{{ g.members|length }} members</small>
                     {% if current_user._id not in g.members %}

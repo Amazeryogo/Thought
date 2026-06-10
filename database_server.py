@@ -33,8 +33,8 @@ class DBServer:
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
         self.data = {}
+        self.id_maps = {} # {col_name: {_id: doc}}
         self.indexes = {} # {col_name: {field: {val: set(doc_ids)}}}
-        self.index_fields = {} # {col_name: [fields]}
         self.lock = threading.Lock()
         self.running = True
         self._load_all()
@@ -96,8 +96,9 @@ class DBServer:
             logger.error(f"Error replaying WAL: {e}")
 
     def _rebuild_indexes(self):
-        # Index on _id for all collections by default
+        # Build master ID maps and predefined indexes
         for col_name in self.data:
+            self.id_maps[col_name] = {doc['_id']: doc for doc in self.data[col_name] if '_id' in doc}
             self.indexes[col_name] = {}
             self._ensure_index(col_name, '_id')
 
@@ -124,6 +125,7 @@ class DBServer:
                         self.indexes[col_name][field][val].add(doc['_id'])
 
     def _update_index_on_insert(self, col_name, doc):
+        self.id_maps[col_name][doc['_id']] = doc
         for field in self.indexes[col_name]:
             val = self._get_nested(doc, field)
             if val is not None and not isinstance(val, (dict, list)):
@@ -132,6 +134,7 @@ class DBServer:
                 self.indexes[col_name][field][val].add(doc['_id'])
 
     def _update_index_on_delete(self, col_name, doc):
+        self.id_maps[col_name].pop(doc['_id'], None)
         for field in self.indexes[col_name]:
             val = self._get_nested(doc, field)
             if val in self.indexes[col_name][field]:
@@ -212,6 +215,8 @@ class DBServer:
                 res = self._delete(col_name, self._json_deserial(req.get('query')), many=True)
             elif cmd == 'aggregate':
                 res = self._aggregate(col_name, self._json_deserial(req.get('pipeline')))
+            elif cmd == 'ping':
+                res = {'status': 'pong'}
             else:
                 res = {'error': 'Unknown command'}
 
@@ -277,22 +282,14 @@ class DBServer:
                     else:
                         candidate_ids &= ids
 
+        # Determine source of documents: index-filtered or full scan
         if candidate_ids is not None:
-            # We have a candidate list from indexes
-            docs = []
-            id_index = self.indexes[col_name]['_id']
-            for _id in candidate_ids:
-                # We need to map ID back to document. In my current indexes, _id is special
-                # it's mapped directly to the document object in the _rebuild_indexes method.
-                # Actually, I should probably keep a master ID -> Doc map.
-                # Let's fix that.
-                pass
+            docs_to_check = [self.id_maps[col_name][_id] for _id in candidate_ids if _id in self.id_maps[col_name]]
+        else:
+            docs_to_check = self.data[col_name]
 
-        # For now, stick to the simple but robust scan, using candidate_ids to filter if available
         results = []
-        for doc in self.data[col_name]:
-            if candidate_ids is not None and doc['_id'] not in candidate_ids:
-                continue
+        for doc in docs_to_check:
             if self._match(doc, query):
                 results.append(doc)
 
@@ -304,11 +301,23 @@ class DBServer:
         return results
 
     def _find_one(self, col_name, query):
-        # Quick ID lookup
+        # Quick ID lookup using master map
         if query and '_id' in query and isinstance(query['_id'], str):
-            for doc in self.data[col_name]:
-                if doc['_id'] == query['_id']:
-                    return doc if self._match(doc, query) else None
+            doc = self.id_maps[col_name].get(query['_id'])
+            if doc and self._match(doc, query):
+                return doc
+            return None
+
+        # Use other indexes if available
+        if query:
+            for field in self.indexes.get(col_name, {}):
+                if field in query and not isinstance(query[field], (dict, list)):
+                    ids = self.indexes[col_name][field].get(query[field], set())
+                    for _id in ids:
+                        doc = self.id_maps[col_name].get(_id)
+                        if doc and self._match(doc, query):
+                            return doc
+                    return None
 
         for doc in self.data[col_name]:
             if self._match(doc, query):
@@ -343,11 +352,18 @@ class DBServer:
     def _update(self, col_name, query, update, many=False, upsert=False):
         updated_count = 0
 
-        # Optimized lookup
+        # Optimized lookup using master map
         docs_to_check = self.data[col_name]
         if query and '_id' in query and isinstance(query['_id'], str):
-            doc = self.indexes[col_name]['_id'].get(query['_id'])
+            doc = self.id_maps[col_name].get(query['_id'])
             docs_to_check = [doc] if doc else []
+        elif query:
+            # Try other indexes
+            for field in self.indexes.get(col_name, {}):
+                if field in query and not isinstance(query[field], (dict, list)):
+                    ids = self.indexes[col_name][field].get(query[field], set())
+                    docs_to_check = [self.id_maps[col_name][_id] for _id in ids if _id in self.id_maps[col_name]]
+                    break
 
         for doc in docs_to_check:
             if self._match(doc, query):

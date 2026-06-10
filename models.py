@@ -46,9 +46,11 @@ class User(UserMixin):
     def get_id(self):
         return self._id
     def get_followers(self):
-        return db.userdb.find_one({"_id": self._id}).get("followers", [])
+        user_data = db.userdb.find_one({"_id": self._id})
+        return user_data.get("followers", []) if user_data else []
     def get_following(self):
-        return db.userdb.find_one({"_id": self._id}).get("following", [])
+        user_data = db.userdb.find_one({"_id": self._id})
+        return user_data.get("following", []) if user_data else []
     @classmethod
     def get_by_username(cls, username):
         data = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
