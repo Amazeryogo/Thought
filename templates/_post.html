@@ -19,7 +19,7 @@
     </div>
 
     {% if post.poll %}
-    <div class="poll-wrapper mb-4 p-3 bg-light rounded-3" id="poll-{{ post._id }}">
+    <div class="poll-wrapper mb-4 p-3 bg-light rounded-3" id="poll-{{ post._id }}" style="color: #333;">
         <h6 class="mb-3">Poll</h6>
         {% for opt in post.poll.options %}
             {% set voters = opt.get('voters', []) %}

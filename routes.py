@@ -1916,11 +1916,12 @@ def git_backend(username, reponame, rest):
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required
 def edit_post(post_id):
-    post = Post.get_by_id(post_id)
-
-    if not post:
+    post_data = db.postdb.find_one({"_id": post_id})
+    if not post_data:
         flash("Post not found.", "danger")
         return redirect("/")
+
+    post = Post(**post_data)
 
     if post.user_id != current_user._id:
         flash("You are not authorized to edit this post.", "danger")
@@ -1928,10 +1929,20 @@ def edit_post(post_id):
 
     form = PostForm()
 
+    # Populate communities
+    user_groups = db.groupsdb.find({"members": current_user._id})
+    group_choices = [('account', 'My Account')]
+    for g in user_groups:
+        group_choices.append((g['_id'], f"Group: {g['name']}"))
+    form.post_to.choices = group_choices
+
     if request.method == 'GET':
         p = 1
         form.title.data = post.title
         form.content.data = post.content
+        form.visibility.data = post.visibility
+        form.is_draft.data = post.is_draft
+        form.post_to.data = post_data.get('group_id', 'account')
 
     if form.validate_on_submit():
         content = filter_profanity(form.content.data)
@@ -1942,7 +1953,10 @@ def edit_post(post_id):
                 {
                     "$set": {
                         "title": form.title.data,
-                        "content": content
+                        "content": content,
+                        "visibility": form.visibility.data,
+                        "is_draft": form.is_draft.data,
+                        "group_id": form.post_to.data if form.post_to.data != 'account' else None
                     },
                     "$addToSet": {"edit_history": {
                         "title": post.title,

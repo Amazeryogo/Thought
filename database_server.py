@@ -227,6 +227,9 @@ class DBServer:
         for p in parts:
             if isinstance(val, dict):
                 val = val.get(p)
+            elif isinstance(val, list) and p.isdigit():
+                idx = int(p)
+                val = val[idx] if 0 <= idx < len(val) else None
             else:
                 return None
         return val
@@ -406,24 +409,30 @@ class DBServer:
                     arr.append(v)
 
     def _set_nested(self, doc, key, value):
-        if "." not in key:
-            if key.startswith("$"):
-                raise ValueError(f"Invalid field name: {key}")
-            doc[key] = value
-            return
-
         parts = key.split('.')
         curr = doc
-        for p in parts[:-1]:
-            if p not in curr:
-                curr[p] = {}
-            curr = curr[p]
+        for i, p in enumerate(parts[:-1]):
+            next_p = parts[i+1]
+            if isinstance(curr, dict):
+                if p not in curr:
+                    curr[p] = [] if next_p.isdigit() else {}
+                curr = curr[p]
+            elif isinstance(curr, list) and p.isdigit():
+                idx = int(p)
+                while len(curr) <= idx:
+                    curr.append({} if not next_p.isdigit() else [])
+                curr = curr[idx]
+            else:
+                return # Should not happen with valid queries
 
         last_key = parts[-1]
-        if last_key.isdigit() and isinstance(curr, list):
-            curr[int(last_key)] = value
-        else:
+        if isinstance(curr, dict):
             curr[last_key] = value
+        elif isinstance(curr, list) and last_key.isdigit():
+            idx = int(last_key)
+            while len(curr) <= idx:
+                curr.append(None)
+            curr[idx] = value
 
     def _aggregate(self, col_name, pipeline):
         result = self.data[col_name]
