@@ -7,7 +7,8 @@ import subprocess
 import shutil
 import markdown
 from datetime import datetime as dt
-from core import app, db
+from core import app, db, ASCENDING, DESCENDING
+from profanity import filter_profanity
 from flask import request, jsonify
 from hashlib import md5
 import urllib.request
@@ -111,11 +112,12 @@ def post_view(post_id):
     form = CommentForm()
 
     if form.validate_on_submit():
-        if len(form.content.data) in range(COMMENT_MIN,COMMENT_MAX+1):
+        content = filter_profanity(form.content.data)
+        if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
-                content=form.content.data
+                content=content
             )
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
@@ -161,6 +163,7 @@ def reply_to_comment(comment_id):
 
     content = request.form.get("reply_content")
     if content:
+        content = filter_profanity(content)
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             Comment.create(
             post_id=parent_comment.post_id,
@@ -234,6 +237,18 @@ def upload_content():
 @login_required
 def render_image(userid,imageuid):
     return send_from_directory(IMAGED + '/users/' + userid +'/images', imageuid)
+
+@app.route("/delete_image/<image_name>", methods=["POST"])
+@login_required
+def delete_image(image_name):
+    image_name = secure_filename(image_name)
+    image_path = os.path.join(IMAGED, 'users', current_user._id, 'images', image_name)
+    if os.path.exists(image_path):
+        os.remove(image_path)
+        flash(f"Image {image_name} deleted.", "success")
+    else:
+        flash("Image not found.", "danger")
+    return redirect(url_for('user', username='me'))
 
 
 @app.route("/api/upload/message_image", methods=["POST"])
@@ -379,6 +394,7 @@ def createnewpost():
                     save_path = os.path.join(user_folder, unique_filename)
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
+        content = filter_profanity(content)
         if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
                 title=title,
@@ -387,7 +403,7 @@ def createnewpost():
                 user_id=user_id,
                 images=image_urls
             )
-            new_post.save_to_mongo()
+            new_post.save_to_db()
             flash('Your post has been created!', 'success')
             return redirect('/me')
         else:
@@ -648,7 +664,7 @@ def get_messages():
 def send_message_v2():
     data = request.get_json()
     recipient = data.get("recipient")
-    content = data.get("message")
+    content = filter_profanity(data.get("message"))
 
     if not recipient or not content:
         return jsonify({"success": False, "error": "Missing data"}), 400
@@ -865,7 +881,7 @@ def create_repo():
             subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo_dir, check=True)
 
             new_repo = Repository(name=name, owner=current_user._id, description=form.description.data)
-            new_repo.save_to_mongo()
+            new_repo.save_to_db()
             flash(f"Repository {name} created successfully!", "success")
             return redirect(url_for("repo_view", username=current_user._id, reponame=name,current_user=current_user))
         except subprocess.CalledProcessError:
@@ -1111,6 +1127,22 @@ def delete_repo(repo_id):
     db.reposdb.delete_one({"_id": repo_id})
     flash(f"Repository {repo.name} deleted.", "success")
     return redirect(url_for("user_repos", username=current_user._id))
+
+@app.route("/api/user/data")
+@login_required
+def get_user_data():
+    limit = request.args.get("limit", default=100, type=int)
+
+    user_data = {
+        "profile": current_user.json(),
+        "posts": [p for p in db.postdb.find({"user_id": current_user._id}).limit(limit)],
+        "comments": [c for c in db.commentdb.find({"user_id": current_user._id}).limit(limit)],
+        "repositories": [r for r in db.reposdb.find({"owner": current_user._id}).limit(limit)],
+        "messages_sent": [m for m in db.messagesdb.find({"sender": current_user._id}).limit(limit)],
+        "messages_received": [m for m in db.messagesdb.find({"receiver": current_user._id}).limit(limit)]
+    }
+
+    return jsonify(user_data)
 def get_git_default_branch(repo_dir):
     try:
         # Check symbolic-ref first
@@ -1364,13 +1396,14 @@ def edit_post(post_id):
         form.content.data = post.content
 
     if form.validate_on_submit():
-        if len(form.content.data) in range(POST_MIN,POST_MAX+1):
+        content = filter_profanity(form.content.data)
+        if len(content) in range(POST_MIN,POST_MAX+1):
             db.postdb.update_one(
                 {"_id": post_id},
                 {
                     "$set": {
                         "title": form.title.data,
-                        "content": form.content.data
+                        "content": content
                     }
                 }
             )

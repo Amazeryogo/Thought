@@ -136,7 +136,7 @@
         {# --- VIDEOS --- #}
         {% for vid in videos %}
         <div class="col-6 col-md-4 col-lg-3">
-            <div class="gallery-card shadow-sm media-trigger"
+            <div class="gallery-card shadow-sm media-trigger position-relative"
                  data-type="video"
                  data-src="{{ url_for('render_image', userid=user._id, imageuid=vid) }}">
                 <div class="media-aspect-container">
@@ -145,6 +145,13 @@
                         <source src="{{ url_for('render_image', userid=user._id, imageuid=vid) }}" type="video/mp4">
                     </video>
                 </div>
+                {% if user.username == current_user.username %}
+                <form action="{{ url_for('delete_image', image_name=vid) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                    <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this video?')">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -152,13 +159,20 @@
         {# --- IMAGES --- #}
         {% for img in non_videos %}
         <div class="col-6 col-md-4 col-lg-3">
-            <div class="gallery-card shadow-sm media-trigger"
+            <div class="gallery-card shadow-sm media-trigger position-relative"
                  data-type="image"
                  data-src="{{ url_for('render_image', userid=user._id, imageuid=img) }}">
                 <div class="media-aspect-container">
                     <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}"
                          class="media-content" alt="Upload">
                 </div>
+                {% if user.username == current_user.username %}
+                <form action="{{ url_for('delete_image', image_name=img) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                    <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this image?')">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
