@@ -37,6 +37,17 @@
 
                     <hr class="my-4">
 
+                    <div class="mb-4">
+                        <h6>Privacy & Data</h6>
+                        <a href="{{ url_for('get_user_data') }}" class="btn btn-info w-100 mb-2">
+                            <span class="material-symbols-outlined align-middle me-2">download</span>
+                            Export My Data
+                        </a>
+                        <small class="text-muted d-block text-center">Allowed once every 30 days.</small>
+                    </div>
+
+                    <hr class="my-4">
+
                     <form action="{{ url_for('logout') }}" method="post" class="d-grid">
                         <button type="submit" class="btn btn-outline-danger">
                             Logout

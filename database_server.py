@@ -7,12 +7,25 @@ import signal
 import sys
 import uuid
 import re
+import logging
 from datetime import datetime
 from copy import deepcopy
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('db_server.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
 PORT = 9001
 DB_PATH = 'DB'
-SYNC_INTERVAL = 60 # seconds
+WAL_PATH = 'DB/wal.log'
+SYNC_INTERVAL = 60
 
 class DBServer:
     def __init__(self, db_path=DB_PATH):
@@ -20,11 +33,15 @@ class DBServer:
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
         self.data = {}
+        self.indexes = {} # {col_name: {field: {val: [doc_ids]}}}
         self.lock = threading.Lock()
         self.running = True
         self._load_all()
+        self._replay_wal()
+        self._rebuild_indexes()
 
     def _load_all(self):
+        logger.info("Loading data from disk...")
         for filename in os.listdir(self.db_path):
             if filename.endswith('.json'):
                 col_name = filename[:-5]
@@ -37,11 +54,12 @@ class DBServer:
                         else:
                             self.data[col_name] = []
                 except Exception as e:
-                    print(f"Error loading {filename}: {e}")
+                    logger.error(f"Error loading {filename}: {e}")
                     self.data[col_name] = []
 
     def _save_all(self):
         with self.lock:
+            logger.info("Syncing all collections to disk...")
             for col_name, col_data in self.data.items():
                 file_path = os.path.join(self.db_path, f"{col_name}.json")
                 temp_path = file_path + ".tmp"
@@ -50,12 +68,43 @@ class DBServer:
                         json.dump(col_data, f, default=self._json_serial)
                     os.rename(temp_path, file_path)
                 except Exception as e:
-                    print(f"Error saving {col_name}: {e}")
+                    logger.error(f"Error saving {col_name}: {e}")
+
+            # Clear WAL after successful sync
+            if os.path.exists(WAL_PATH):
+                open(WAL_PATH, 'w').close()
+
+    def _log_to_wal(self, req):
+        try:
+            with open(WAL_PATH, 'a') as f:
+                f.write(json.dumps(req, default=self._json_serial) + "\n")
+        except Exception as e:
+            logger.error(f"WAL error: {e}")
+
+    def _replay_wal(self):
+        if not os.path.exists(WAL_PATH):
+            return
+        logger.info("Replaying WAL...")
+        try:
+            with open(WAL_PATH, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        req = json.loads(line)
+                        self.process_request(req, log_wal=False)
+        except Exception as e:
+            logger.error(f"Error replaying WAL: {e}")
+
+    def _rebuild_indexes(self):
+        # Index on _id for all collections
+        for col_name in self.data:
+            self.indexes[col_name] = {'_id': {}}
+            for doc in self.data[col_name]:
+                if '_id' in doc:
+                    self.indexes[col_name]['_id'][doc['_id']] = doc
 
     def sync_loop(self):
         while self.running:
             time.sleep(SYNC_INTERVAL)
-            print("Syncing database to disk...")
             self._save_all()
 
     @staticmethod
@@ -77,7 +126,7 @@ class DBServer:
         try:
             buffer = b""
             while True:
-                chunk = conn.recv(4096)
+                chunk = conn.recv(8192)
                 if not chunk:
                     break
                 buffer += chunk
@@ -87,36 +136,55 @@ class DBServer:
                     response = self.process_request(request)
                     conn.sendall((json.dumps(response, default=self._json_serial) + "\n").encode('utf-8'))
         except Exception as e:
-            print(f"Client error: {e}")
+            logger.debug(f"Client disconnected or error: {e}")
         finally:
             conn.close()
 
-    def process_request(self, req):
+    def process_request(self, req, log_wal=True):
         cmd = req.get('cmd')
         col_name = req.get('col')
+
+        start_time = time.time()
 
         with self.lock:
             if col_name not in self.data:
                 self.data[col_name] = []
+                self.indexes[col_name] = {'_id': {}}
 
-            # Ensure all data in this collection is deserialized (with dates)
-            self.data[col_name] = [self._json_deserial(d) if isinstance(d, dict) and any(isinstance(v, str) and v.startswith('20') for v in d.values()) else d for d in self.data[col_name]]
+            # Ensure all data in this collection is deserialized
+            # (In-memory optimization: only do this if it's currently serialized strings)
+            # Actually, the memory state should always be deserialized Python objects.
 
+            if log_wal and cmd in ['insert_one', 'insert_many', 'update_one', 'update_many', 'delete_one', 'delete_many']:
+                self._log_to_wal(req)
+
+            res = None
             if cmd == 'find':
-                return self._find(col_name, self._json_deserial(req.get('query')))
+                res = self._find(col_name, self._json_deserial(req.get('query')))
             elif cmd == 'find_one':
-                return self._find_one(col_name, self._json_deserial(req.get('query')))
+                res = self._find_one(col_name, self._json_deserial(req.get('query')))
             elif cmd == 'insert_one':
-                return self._insert_one(col_name, self._json_deserial(req.get('doc')))
+                res = self._insert_one(col_name, self._json_deserial(req.get('doc')))
+            elif cmd == 'insert_many':
+                res = self._insert_many(col_name, self._json_deserial(req.get('docs')))
             elif cmd == 'update_one':
-                return self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=False)
+                res = self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=False)
             elif cmd == 'update_many':
-                return self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=True)
+                res = self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=True)
             elif cmd == 'delete_one':
-                return self._delete(col_name, self._json_deserial(req.get('query')))
+                res = self._delete(col_name, self._json_deserial(req.get('query')), many=False)
+            elif cmd == 'delete_many':
+                res = self._delete(col_name, self._json_deserial(req.get('query')), many=True)
             elif cmd == 'aggregate':
-                return self._aggregate(col_name, self._json_deserial(req.get('pipeline')))
-        return {'error': 'Unknown command'}
+                res = self._aggregate(col_name, self._json_deserial(req.get('pipeline')))
+            else:
+                res = {'error': 'Unknown command'}
+
+        duration = time.time() - start_time
+        if duration > 0.1: # Log slow queries
+            logger.warning(f"Slow query: {cmd} on {col_name} took {duration:.2f}s")
+
+        return res
 
     def _get_nested(self, doc, key):
         parts = key.split('.')
@@ -129,10 +197,10 @@ class DBServer:
         return val
 
     def _match(self, doc, query):
+        if not query: return True
         for key, value in query.items():
             if key == "$or":
-                if not any(self._match(doc, q) for q in value):
-                    return False
+                if not any(self._match(doc, q) for q in value): return False
                 continue
 
             doc_val = self._get_nested(doc, key)
@@ -151,64 +219,147 @@ class DBServer:
                         if not (isinstance(doc_val, str) and re.search(op_val, doc_val, re.I if isinstance(op_val, str) else 0)):
                             return False
             elif isinstance(value, str) and value.startswith('__RE__'):
-                # Handle regex object passed from client
                 pattern, flags = value[6:].split('|', 1)
                 if not (isinstance(doc_val, str) and re.search(pattern, doc_val, int(flags))):
                     return False
             else:
-                if doc_val != value:
-                    return False
+                if doc_val != value: return False
         return True
 
     def _find(self, col_name, query):
-        query = query or {}
+        # Index usage optimization
+        if query and '_id' in query and isinstance(query['_id'], str):
+            doc = self.indexes[col_name]['_id'].get(query['_id'])
+            if doc and self._match(doc, query):
+                return [doc]
+            return []
+
         results = [d for d in self.data[col_name] if self._match(d, query)]
         return results
 
     def _find_one(self, col_name, query):
-        query = query or {}
+        if query and '_id' in query and isinstance(query['_id'], str):
+            doc = self.indexes[col_name]['_id'].get(query['_id'])
+            return doc if self._match(doc, query) else None
+
         for doc in self.data[col_name]:
             if self._match(doc, query):
                 return doc
         return None
 
+    def _validate_doc(self, doc):
+        if not isinstance(doc, dict):
+            raise ValueError("Document must be a dictionary")
+        for key in doc.keys():
+            if not isinstance(key, str):
+                raise ValueError("Field names must be strings")
+            if "." in key or key.startswith("$"):
+                raise ValueError(f"Invalid field name: {key}")
+
     def _insert_one(self, col_name, doc):
+        self._validate_doc(doc)
         if "_id" not in doc:
             doc["_id"] = uuid.uuid4().hex
+        # Initial versioning for optimistic locking
+        doc["__v"] = 0
         self.data[col_name].append(doc)
+        self.indexes[col_name]['_id'][doc['_id']] = doc
         return doc
 
-    def _update(self, col_name, query, update, many=False):
+    def _insert_many(self, col_name, docs):
+        results = []
+        for d in docs:
+            results.append(self._insert_one(col_name, d))
+        return results
+
+    def _update(self, col_name, query, update, many=False, upsert=False):
         updated_count = 0
-        for doc in self.data[col_name]:
+
+        # Optimized lookup
+        docs_to_check = self.data[col_name]
+        if query and '_id' in query and isinstance(query['_id'], str):
+            doc = self.indexes[col_name]['_id'].get(query['_id'])
+            docs_to_check = [doc] if doc else []
+
+        for doc in docs_to_check:
             if self._match(doc, query):
+                # Optimistic locking check if __v is provided in query
+                if "__v" in query and doc.get("__v") != query["__v"]:
+                    continue # Version mismatch
+
                 self._apply_update(doc, update)
+                doc["__v"] = doc.get("__v", 0) + 1
                 updated_count += 1
                 if not many:
                     break
+
+        if updated_count == 0 and upsert:
+            new_doc = deepcopy(query)
+            # Remove operators from query for new doc
+            new_doc = {k: v for k, v in new_doc.items() if not k.startswith('$')}
+            self._apply_update(new_doc, update)
+            self._insert_one(col_name, new_doc)
+            return 1
+
         return updated_count
 
-    def _delete(self, col_name, query):
+    def _delete(self, col_name, query, many=False):
+        indices_to_remove = []
         for i, doc in enumerate(self.data[col_name]):
             if self._match(doc, query):
-                self.data[col_name].pop(i)
-                return True
-        return False
+                indices_to_remove.append(i)
+                if not many:
+                    break
+
+        for i in reversed(indices_to_remove):
+            doc = self.data[col_name].pop(i)
+            if '_id' in doc:
+                self.indexes[col_name]['_id'].pop(doc['_id'], None)
+
+        return len(indices_to_remove) > 0
 
     def _apply_update(self, doc, update):
         if "$set" in update:
             for k, v in update["$set"].items():
-                doc[k] = v
+                self._set_nested(doc, k, v)
+        if "$inc" in update:
+            for k, v in update["$inc"].items():
+                old_val = self._get_nested(doc, k) or 0
+                self._set_nested(doc, k, old_val + v)
         if "$pull" in update:
             for k, v in update["$pull"].items():
-                if k in doc and isinstance(doc[k], list):
-                    doc[k] = [i for i in doc[k] if i != v]
+                arr = self._get_nested(doc, k)
+                if isinstance(arr, list):
+                    new_arr = [i for i in arr if i != v]
+                    self._set_nested(doc, k, new_arr)
         if "$addToSet" in update:
             for k, v in update["$addToSet"].items():
-                if k not in doc:
-                    doc[k] = []
-                if v not in doc[k]:
-                    doc[k].append(v)
+                arr = self._get_nested(doc, k)
+                if arr is None:
+                    arr = []
+                    self._set_nested(doc, k, arr)
+                if isinstance(arr, list) and v not in arr:
+                    arr.append(v)
+
+    def _set_nested(self, doc, key, value):
+        if "." not in key:
+            if key.startswith("$"):
+                raise ValueError(f"Invalid field name: {key}")
+            doc[key] = value
+            return
+
+        parts = key.split('.')
+        curr = doc
+        for p in parts[:-1]:
+            if p not in curr:
+                curr[p] = {}
+            curr = curr[p]
+
+        last_key = parts[-1]
+        if last_key.isdigit() and isinstance(curr, list):
+            curr[int(last_key)] = value
+        else:
+            curr[last_key] = value
 
     def _aggregate(self, col_name, pipeline):
         result = self.data[col_name]
@@ -217,7 +368,6 @@ class DBServer:
                 result = [d for d in result if self._match(d, stage["$match"])]
             elif "$sort" in stage:
                 sort_keys = stage["$sort"]
-                # We need to copy to avoid modifying the original list in memory if it's reused
                 result = list(result)
                 for key, order in reversed(list(sort_keys.items())):
                     result.sort(key=lambda x: (v if not isinstance(v := self._get_nested(x, key), (dict, list)) and v is not None else ""), reverse=(order == -1))
@@ -262,11 +412,11 @@ class DBServer:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind(('127.0.0.1', PORT))
-        server.listen(5)
-        print(f"Database server started on port {PORT}")
+        server.listen(50)
+        logger.info(f"Database server started on port {PORT}")
 
         def handle_signal(sig, frame):
-            print("Shutting down database server...")
+            logger.info("Shutting down database server...")
             self.running = False
             self._save_all()
             sys.exit(0)
@@ -275,9 +425,13 @@ class DBServer:
         signal.signal(signal.SIGTERM, handle_signal)
 
         while True:
-            conn, addr = server.accept()
-            client_thread = threading.Thread(target=self.handle_client, args=(conn,))
-            client_thread.start()
+            try:
+                conn, addr = server.accept()
+                client_thread = threading.Thread(target=self.handle_client, args=(conn,))
+                client_thread.start()
+            except Exception as e:
+                if self.running:
+                    logger.error(f"Accept error: {e}")
 
 if __name__ == "__main__":
     DBServer().start()

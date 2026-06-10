@@ -44,4 +44,23 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
     });
+
+    document.querySelectorAll(".bookmark-btn").forEach(button => {
+        button.addEventListener("click", () => {
+            const postId = button.getAttribute("data-id");
+
+            fetch(`/bookmark/${postId}`, { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.action.includes("added")) {
+                        button.textContent = "bookmark_added";
+                    } else {
+                        button.textContent = "bookmark";
+                    }
+                }
+            })
+            .catch(err => console.error("Error:", err));
+        });
+    });
 });

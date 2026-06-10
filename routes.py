@@ -68,13 +68,91 @@ def load_user(user_id):
 
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
+@login_required
 def home():
-    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
+    # Follow Feed: Show posts from people you follow + your own posts
+    following = current_user.get_following()
+    feed_users = following + [current_user._id]
+
+    posts = db.postdb.find({"user_id": {"$in": feed_users}}).sort("timestamp", DESCENDING).limit(20)
+
+    # If feed is too small, supplement with global posts
+    p_list = list(posts)
+    if len(p_list) < 5:
+        global_posts = db.postdb.find({"user_id": {"$nin": feed_users}}).sort("timestamp", DESCENDING).limit(10)
+        p_list.extend(list(global_posts))
+        # Re-sort combined list
+        p_list.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+    p2 = []
+    for i in p_list:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2)
+
+@app.route('/explore')
+@login_required
+def explore():
+    # Global feed + Trending Hashtags
+    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(20)
+    trending = db.hashtagsdb.find().sort("count", DESCENDING).limit(10)
+
     p2 = []
     for i in posts:
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
-    return render_template('home.html', posts=p2)
+    return render_template('explore.html', posts=p2, trending=trending)
+
+@app.route('/search')
+@login_required
+def search():
+    q = request.args.get('q', '')
+    if not q:
+        return render_template('search.html')
+
+    # Search users, posts, hashtags
+    users = db.userdb.find({"username": {"$regex": q}})
+    posts = db.postdb.find({"$or": [{"title": {"$regex": q}}, {"content": {"$regex": q}}]}).sort("timestamp", DESCENDING)
+    hashtags = db.hashtagsdb.find({"name": {"$regex": q}})
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+
+    return render_template('search.html', users=users, posts=p2, hashtags=hashtags, q=q)
+
+@app.route('/hashtag/<name>')
+@login_required
+def hashtag_view(name):
+    posts = db.postdb.find({"content": {"$regex": f"#{name}"}}).sort("timestamp", DESCENDING)
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2, title=f"#{name}")
+
+@app.route("/poll/vote/<post_id>", methods=['POST'])
+@login_required
+def poll_vote(post_id):
+    option_index = request.json.get('option')
+    post = db.postdb.find_one({"_id": post_id})
+    if not post or 'poll' not in post:
+        return jsonify({"success": False, "message": "No poll found"}), 404
+
+    # Check if user already voted
+    for opt in post['poll']['options']:
+        if current_user._id in opt.get('voters', []):
+            return jsonify({"success": False, "message": "Already voted"}), 400
+
+    # Add vote
+    db.postdb.update_one(
+        {"_id": post_id},
+        {"$addToSet": {f"poll.options.{option_index}.voters": current_user._id}}
+    )
+    # Re-fetch for updated counts
+    updated_post = db.postdb.find_one({"_id": post_id})
+    return jsonify({"success": True, "poll": updated_post['poll']})
 
 @app.route("/api/user/active", methods=["POST"])
 @login_required
@@ -114,11 +192,20 @@ def post_view(post_id):
     if form.validate_on_submit():
         content = filter_profanity(form.content.data)
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
-            Comment.create(
+            comment = Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
                 content=content
             )
+            # Notify post owner
+            Notification.create(post.user_id, 'comment', current_user._id, post_id=post_id, comment_id=comment._id)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=post_id, comment_id=comment._id)
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
@@ -165,12 +252,21 @@ def reply_to_comment(comment_id):
     if content:
         content = filter_profanity(content)
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
-            Comment.create(
-            post_id=parent_comment.post_id,
-            username=current_user.username,
-            content=content,
-            parent_comment_id=comment_id
-        )
+            comment = Comment.create(
+                post_id=parent_comment.post_id,
+                user_id=current_user._id,
+                content=content,
+                parent_comment_id=comment_id
+            )
+            # Notify parent comment owner
+            Notification.create(parent_comment.user_id, 'comment', current_user._id, post_id=parent_comment.post_id, comment_id=comment._id)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=parent_comment.post_id, comment_id=comment._id)
             flash("Reply posted!", "success")
         else:
             if len(content) > COMMENT_MAX:
@@ -395,6 +491,7 @@ def createnewpost():
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
         content = filter_profanity(content)
+
         if len(content) in range(POST_MIN, POST_MAX+1):
             new_post = Post(
                 title=title,
@@ -404,6 +501,18 @@ def createnewpost():
                 images=image_urls
             )
             new_post.save_to_db()
+
+            # Parse hashtags
+            hashtags = re.findall(r'#(\w+)', content)
+            for h in set(hashtags):
+                db.hashtagsdb.update_one({"name": h.lower()}, {"$addToSet": {"posts": new_post._id}, "$inc": {"count": 1}}, upsert=True)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=new_post._id)
             flash('Your post has been created!', 'success')
             return redirect('/me')
         else:
@@ -439,12 +548,67 @@ def like():
 
     Post.liked(_id=post_id, userx=current_user._id)
     post = db.postdb.find_one({"_id": post_id})
+
+    # Notify post owner if it was a like (not a removal)
+    if current_user._id in post.get('liked_by', []):
+        Notification.create(post['user_id'], 'like', current_user._id, post_id=post_id)
     return jsonify({
         "success": True,
         "likes": post.get("likes", 0),
         "dislikes": post.get("dislikes", 0)
     })
 
+
+@app.route("/repost/<post_id>", methods=['POST'])
+@login_required
+def repost(post_id):
+    original_post = Post.get_by_id(post_id)
+    if not original_post:
+        abort(404)
+
+    # Create a new post that references the original
+    new_post = Post(
+        title=f"Repost: {original_post.title}",
+        content=f"Reposted from @{original_post.username}\n\n{original_post.content}",
+        timestamp=dt.now().strftime('%H:%M:%S %Y-%m-%d'),
+        user_id=current_user._id,
+        images=original_post.images
+    )
+    new_post.save_to_db()
+
+    # Notify original owner
+    Notification.create(original_post.user_id, 'repost', current_user._id, post_id=new_post._id)
+
+    flash("Post reposted!", "success")
+    return redirect(url_for('home'))
+
+@app.route("/bookmark/<post_id>", methods=['POST'])
+@login_required
+def bookmark(post_id):
+    # We store bookmarks in the user document
+    user_data = db.userdb.find_one({"_id": current_user._id})
+    is_bookmarked = post_id in user_data.get('bookmarks', [])
+    if is_bookmarked:
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"bookmarks": post_id}})
+        action = "removed from bookmarks"
+    else:
+        db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"bookmarks": post_id}})
+        action = "added to bookmarks"
+
+    return jsonify({"success": True, "action": action})
+
+@app.route("/bookmarks")
+@login_required
+def bookmarks():
+    user_data = db.userdb.find_one({"_id": current_user._id})
+    bookmark_ids = user_data.get('bookmarks', [])
+    posts = db.postdb.find({"_id": {"$in": bookmark_ids}}).sort("timestamp", DESCENDING)
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2, title="My Bookmarks")
 
 @app.route("/dislike", methods=['POST'])
 @login_required
@@ -798,6 +962,7 @@ def toggle_follow(username):
             {"$addToSet": {"following": v}}
         )
         action = "followed"
+        Notification.create(v, 'follow', current_user._id)
 
     # Get updated count
     updated_user = db.userdb.find_one({"_id": v})
@@ -1128,9 +1293,32 @@ def delete_repo(repo_id):
     flash(f"Repository {repo.name} deleted.", "success")
     return redirect(url_for("user_repos", username=current_user._id))
 
+@app.route("/notifications")
+@login_required
+def notifications():
+    notifs = Notification.find_by_user(current_user._id)
+    Notification.mark_all_read(current_user._id)
+    return render_template("notifications.html", notifications=notifs, User=User)
+
+@app.route("/api/notifications/unread_count")
+@login_required
+def unread_notifications_count():
+    count = len(db.notificationsdb.find({"user_id": current_user._id, "read": False}))
+    return jsonify({"count": count})
+
 @app.route("/api/user/data")
 @login_required
 def get_user_data():
+    # Limit: 1 per month (30 days)
+    last_export = current_user.json().get('last_data_export')
+    if last_export:
+        if isinstance(last_export, str):
+            last_export = dt.fromisoformat(last_export)
+        if (dt.now() - last_export).days < 30:
+            return jsonify({"error": "Data export is limited to once every 30 days."}), 429
+
+    db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_data_export": dt.now()}})
+
     limit = request.args.get("limit", default=100, type=int)
 
     user_data = {

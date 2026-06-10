@@ -47,6 +47,19 @@
           <a href="{{ url_for('post_view', post_id=post._id) }}" class="text-decoration-none text-secondary" title="View Comments">
             <span class="material-symbols-outlined align-middle">add_comment</span>
           </a>
+
+          <form action="{{ url_for('repost', post_id=post._id) }}" method="post" style="display: inline;">
+            <button type="submit" class="btn btn-link p-0 text-info" title="Repost">
+                <span class="material-symbols-outlined align-middle">repeat</span>
+            </button>
+          </form>
+
+          <span class="bookmark-btn material-symbols-outlined text-warning action-icon"
+                data-id="{{ post._id }}"
+                style="cursor: pointer;"
+                title="Bookmark">
+                {% if post._id in current_user.json().get('bookmarks', []) %}bookmark_added{% else %}bookmark{% endif %}
+          </span>
         {% endif %}
       </div>
 

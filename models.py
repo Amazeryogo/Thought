@@ -209,6 +209,48 @@ def get_idd(username):
 def get_username(_id):
     user = db.userdb.find_one({"_id": _id})
     return user['username'] if user else "Unknown"
+
+class Notification:
+    def __init__(self, user_id, type, sender_id, post_id=None, comment_id=None, timestamp=None, read=False, _id=None):
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.user_id = user_id
+        self.type = type # 'like', 'comment', 'follow', 'mention'
+        self.sender_id = sender_id
+        self.post_id = post_id
+        self.comment_id = comment_id
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+        self.read = read
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "user_id": self.user_id,
+            "type": self.type,
+            "sender_id": self.sender_id,
+            "post_id": self.post_id,
+            "comment_id": self.comment_id,
+            "timestamp": self.timestamp,
+            "read": self.read
+        }
+
+    def save_to_db(self):
+        db.notificationsdb.insert_one(self.json())
+
+    @classmethod
+    def create(cls, user_id, type, sender_id, post_id=None, comment_id=None):
+        if user_id == sender_id: return # Don't notify self
+        notif = cls(user_id, type, sender_id, post_id, comment_id)
+        notif.save_to_db()
+        return notif
+
+    @classmethod
+    def find_by_user(cls, user_id, limit=20):
+        data = db.notificationsdb.find({"user_id": user_id}).sort("timestamp", -1).limit(limit)
+        return [cls(**d) for d in data]
+
+    @classmethod
+    def mark_all_read(cls, user_id):
+        db.notificationsdb.update_many({"user_id": user_id, "read": False}, {"$set": {"read": True}})
 class Messages:
     def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
         self.sender = sender
