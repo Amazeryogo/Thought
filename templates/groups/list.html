@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Communities</h2>
+        <a href="{{ url_for('create_group') }}" class="btn btn-primary">Create Group</a>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+        {% for g in groups %}
+        <div class="col">
+            <div class="card h-100 shadow-sm rounded-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ g.name }}</h5>
+                    <p class="card-text text-muted">{{ g.description }}</p>
+                    <small class="d-block mb-3 text-muted">{{ g.members|length }} members</small>
+                    {% if current_user._id not in g.members %}
+                    <form action="{{ url_for('join_group', group_id=g._id) }}" method="POST">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Join</button>
+                    </form>
+                    {% else %}
+                    <span class="badge badge-success">Member</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

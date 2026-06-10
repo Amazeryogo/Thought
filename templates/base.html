@@ -71,6 +71,12 @@
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link d-flex align-items-center" href="/groups">
+          <span class="material-symbols-outlined mr-2">groups</span>
+          <span class="d-lg-none">Communities</span>
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link d-flex align-items-center" href="/upload">
           <span class="material-symbols-outlined mr-2">photo_camera</span>
           <span class="d-lg-none">Upload</span>
@@ -83,6 +89,11 @@
           <span class="material-symbols-outlined align-middle">search</span>
       </button>
     </form>
+    <div class="ml-2">
+        <span class="material-symbols-outlined text-white cursor-pointer" onclick="toggleTheme()" id="theme-icon">
+            {{ 'light_mode' if session.get('theme') == 'dark' else 'dark_mode' }}
+        </span>
+    </div>
   </div>
 </nav>
     <br/>
@@ -104,6 +115,17 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
     <script>
+      function toggleTheme() {
+        const currentTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+        fetch('/save_theme', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ theme: currentTheme })
+        }).then(() => {
+          location.reload();
+        });
+      }
+
       function updateNotifCount() {
         fetch('/api/notifications/unread_count')
           .then(r => r.json())

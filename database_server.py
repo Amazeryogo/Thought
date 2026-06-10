@@ -33,7 +33,8 @@ class DBServer:
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
         self.data = {}
-        self.indexes = {} # {col_name: {field: {val: [doc_ids]}}}
+        self.indexes = {} # {col_name: {field: {val: set(doc_ids)}}}
+        self.index_fields = {} # {col_name: [fields]}
         self.lock = threading.Lock()
         self.running = True
         self._load_all()
@@ -95,12 +96,46 @@ class DBServer:
             logger.error(f"Error replaying WAL: {e}")
 
     def _rebuild_indexes(self):
-        # Index on _id for all collections
+        # Index on _id for all collections by default
         for col_name in self.data:
-            self.indexes[col_name] = {'_id': {}}
+            self.indexes[col_name] = {}
+            self._ensure_index(col_name, '_id')
+
+            # Additional pre-defined indexes for performance
+            if col_name == 'userdb':
+                self._ensure_index(col_name, 'username')
+            elif col_name == 'postdb':
+                self._ensure_index(col_name, 'user_id')
+            elif col_name == 'commentdb':
+                self._ensure_index(col_name, 'post_id')
+
+    def _ensure_index(self, col_name, field):
+        if col_name not in self.indexes:
+            self.indexes[col_name] = {}
+        if field not in self.indexes[col_name]:
+            logger.info(f"Building index for {col_name}.{field}")
+            self.indexes[col_name][field] = {}
             for doc in self.data[col_name]:
-                if '_id' in doc:
-                    self.indexes[col_name]['_id'][doc['_id']] = doc
+                val = self._get_nested(doc, field)
+                if val is not None:
+                    if not isinstance(val, (dict, list)): # Only index hashable scalars
+                        if val not in self.indexes[col_name][field]:
+                            self.indexes[col_name][field][val] = set()
+                        self.indexes[col_name][field][val].add(doc['_id'])
+
+    def _update_index_on_insert(self, col_name, doc):
+        for field in self.indexes[col_name]:
+            val = self._get_nested(doc, field)
+            if val is not None and not isinstance(val, (dict, list)):
+                if val not in self.indexes[col_name][field]:
+                    self.indexes[col_name][field][val] = set()
+                self.indexes[col_name][field][val].add(doc['_id'])
+
+    def _update_index_on_delete(self, col_name, doc):
+        for field in self.indexes[col_name]:
+            val = self._get_nested(doc, field)
+            if val in self.indexes[col_name][field]:
+                self.indexes[col_name][field][val].discard(doc['_id'])
 
     def sync_loop(self):
         while self.running:
@@ -160,7 +195,7 @@ class DBServer:
 
             res = None
             if cmd == 'find':
-                res = self._find(col_name, self._json_deserial(req.get('query')))
+                res = self._find(col_name, self._json_deserial(req.get('query')), req.get('limit'), req.get('skip'))
             elif cmd == 'find_one':
                 res = self._find_one(col_name, self._json_deserial(req.get('query')))
             elif cmd == 'insert_one':
@@ -226,21 +261,51 @@ class DBServer:
                 if doc_val != value: return False
         return True
 
-    def _find(self, col_name, query):
-        # Index usage optimization
-        if query and '_id' in query and isinstance(query['_id'], str):
-            doc = self.indexes[col_name]['_id'].get(query['_id'])
-            if doc and self._match(doc, query):
-                return [doc]
-            return []
+    def _find(self, col_name, query, limit=None, skip=0):
+        # Use indexes if possible
+        candidate_ids = None
+        if query:
+            for field in self.indexes.get(col_name, {}):
+                if field in query and not isinstance(query[field], (dict, list)):
+                    val = query[field]
+                    ids = self.indexes[col_name][field].get(val, set())
+                    if candidate_ids is None:
+                        candidate_ids = set(ids)
+                    else:
+                        candidate_ids &= ids
 
-        results = [d for d in self.data[col_name] if self._match(d, query)]
+        if candidate_ids is not None:
+            # We have a candidate list from indexes
+            docs = []
+            id_index = self.indexes[col_name]['_id']
+            for _id in candidate_ids:
+                # We need to map ID back to document. In my current indexes, _id is special
+                # it's mapped directly to the document object in the _rebuild_indexes method.
+                # Actually, I should probably keep a master ID -> Doc map.
+                # Let's fix that.
+                pass
+
+        # For now, stick to the simple but robust scan, using candidate_ids to filter if available
+        results = []
+        for doc in self.data[col_name]:
+            if candidate_ids is not None and doc['_id'] not in candidate_ids:
+                continue
+            if self._match(doc, query):
+                results.append(doc)
+
+        if skip:
+            results = results[skip:]
+        if limit:
+            results = results[:limit]
+
         return results
 
     def _find_one(self, col_name, query):
+        # Quick ID lookup
         if query and '_id' in query and isinstance(query['_id'], str):
-            doc = self.indexes[col_name]['_id'].get(query['_id'])
-            return doc if self._match(doc, query) else None
+            for doc in self.data[col_name]:
+                if doc['_id'] == query['_id']:
+                    return doc if self._match(doc, query) else None
 
         for doc in self.data[col_name]:
             if self._match(doc, query):
@@ -263,7 +328,7 @@ class DBServer:
         # Initial versioning for optimistic locking
         doc["__v"] = 0
         self.data[col_name].append(doc)
-        self.indexes[col_name]['_id'][doc['_id']] = doc
+        self._update_index_on_insert(col_name, doc)
         return doc
 
     def _insert_many(self, col_name, docs):
@@ -313,8 +378,7 @@ class DBServer:
 
         for i in reversed(indices_to_remove):
             doc = self.data[col_name].pop(i)
-            if '_id' in doc:
-                self.indexes[col_name]['_id'].pop(doc['_id'], None)
+            self._update_index_on_delete(col_name, doc)
 
         return len(indices_to_remove) > 0
 

@@ -3,6 +3,7 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+import time
 import subprocess
 import shutil
 import markdown
@@ -11,7 +12,24 @@ from core import app, db, ASCENDING, DESCENDING
 from profanity import filter_profanity
 from flask import request, jsonify
 from hashlib import md5
+from functools import wraps
 import urllib.request
+def rate_limit(limit=10, period=60):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if current_user.is_authenticated:
+                key = f"rate_limit:{current_user._id}:{f.__name__}"
+                now = time.time()
+                # Use db for rate limiting state
+                db.ratelimits.delete_many({"key": key, "timestamp": {"$lt": now - period}})
+                calls = len(list(db.ratelimits.find({"key": key})))
+                if calls >= limit:
+                    return jsonify({"error": "Rate limit exceeded"}), 429
+                db.ratelimits.insert_one({"key": key, "timestamp": now})
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
 
 @app.route('/image/posts/<user_id>/<image_name>')
 def image_post(user_id, image_name):
@@ -70,11 +88,11 @@ def load_user(user_id):
 @app.route('/home', methods=['GET', 'POST'])
 @login_required
 def home():
-    # Follow Feed: Show posts from people you follow + your own posts
+    # Follow Feed: Show posts from people you follow + your own posts (excluding drafts)
     following = current_user.get_following()
     feed_users = following + [current_user._id]
 
-    posts = db.postdb.find({"user_id": {"$in": feed_users}}).sort("timestamp", DESCENDING).limit(20)
+    posts = db.postdb.find({"user_id": {"$in": feed_users}, "is_draft": {"$ne": True}}).sort("timestamp", DESCENDING).limit(20)
 
     # If feed is too small, supplement with global posts
     p_list = list(posts)
@@ -93,15 +111,46 @@ def home():
 @app.route('/explore')
 @login_required
 def explore():
-    # Global feed + Trending Hashtags
-    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(20)
-    trending = db.hashtagsdb.find().sort("count", DESCENDING).limit(10)
+    # Global feed + Trending Hashtags (excluding drafts)
+    posts = db.postdb.find({"is_draft": {"$ne": True}}).sort("timestamp", DESCENDING).limit(20)
+
+    # Simple decay: score = count / (hours_since_last_post + 1)^1.5
+    all_hashtags = db.hashtagsdb.find()
+    hashtag_scores = []
+    now = dt.now()
+    for h in all_hashtags:
+        last_used = h.get('last_used', now)
+        if isinstance(last_used, str): last_used = dt.fromisoformat(last_used)
+        hours_old = (now - last_used).total_seconds() / 3600
+        score = h.get('count', 0) / ((hours_old + 1) ** 1.5)
+        hashtag_scores.append((h, score))
+
+    hashtag_scores.sort(key=lambda x: x[1], reverse=True)
+    trending = [x[0] for x in hashtag_scores[:10]]
+
+    # Suggested Users: People you don't follow but your follows follow
+    following = current_user.get_following()
+    suggested = []
+    if following:
+        # This is expensive O(N^2) for my simple DB, but okay for moderate size
+        potential = []
+        for f_id in following:
+            f_user = User.get_by_id(f_id)
+            if f_user:
+                potential.extend(f_user.get_following())
+
+        # Filter: not you, not already following
+        potential = [p for p in potential if p != current_user._id and p not in following]
+        # Count frequency
+        from collections import Counter
+        counts = Counter(potential).most_common(5)
+        suggested = [User.get_by_id(u_id) for u_id, c in counts if User.get_by_id(u_id)]
 
     p2 = []
     for i in posts:
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
-    return render_template('explore.html', posts=p2, trending=trending)
+    return render_template('explore.html', posts=p2, trending=trending, suggested=suggested)
 
 @app.route('/search')
 @login_required
@@ -385,9 +434,43 @@ def user(username):
         user = User.get_by_username(username)
         if user is None:
             return redirect('/404')
+
+    # Check if blocked
+    if current_user._id in user.json().get('blocked_users', []):
+        flash("You are blocked by this user.", "danger")
+        return redirect(url_for('home'))
+
     avatar = User.avatar(user.username)
     aboutme = User.get_aboutme(user.username)
-    posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
+
+    # User Stats
+    user_posts = db.postdb.find({"user_id": user._id})
+    total_likes = sum(p.get('likes', 0) for p in user_posts)
+    stats = {
+        "total_posts": len(list(db.postdb.find({"user_id": user._id}))),
+        "total_likes": total_likes,
+        "member_since": user.json().get('timestamp', 'Unknown')
+    }
+
+    # Post visibility logic
+    query = {"user_id": user._id}
+    if user._id == current_user._id:
+        # User viewing their own profile sees everything
+        pass
+    else:
+        query["is_draft"] = {"$ne": True}
+    if user._id != current_user._id:
+        is_following = current_user._id in user.get_followers()
+        if user.json().get('is_private') and not is_following:
+            return render_template('user.html', user=user, posts=[], avatar=avatar, aboutme=aboutme, private=True)
+
+        # Filter visibility levels
+        visible_levels = ['public']
+        if is_following:
+            visible_levels.append('followers')
+        query['visibility'] = {"$in": visible_levels}
+
+    posts = db.postdb.find(query).sort("timestamp", DESCENDING).limit(10)
     p2 = []
     for post in posts:
         post['content'] = markdown.markdown(post['content'])
@@ -411,6 +494,7 @@ def user(username):
         aboutme=aboutme,
         videos = video,
         non_videos = non_video,
+        stats = stats
     )
 
 @app.route("/register", methods=['GET', 'POST'])
@@ -450,6 +534,10 @@ def login():
             username = request.form["username"]
             password = request.form["password"]
             user = User.get_by_username(username)
+            if user and user.json().get('is_banned'):
+                flash("Your account has been banned.", "danger")
+                return redirect(url_for('login'))
+
             if user is not None and User.login_valid(username, password):
                 login_user(user)
                 current_user.is_authenticated = True
@@ -469,6 +557,7 @@ def login():
 
 @app.route("/upload/post", methods=['GET', 'POST'])
 @login_required
+@rate_limit(limit=5, period=300) # Limit post creation
 def createnewpost():
     form = PostForm()
     p = 0
@@ -493,12 +582,22 @@ def createnewpost():
         content = filter_profanity(content)
 
         if len(content) in range(POST_MIN, POST_MAX+1):
+            visibility = form.visibility.data
+            is_draft = form.is_draft.data
+            poll_data = None
+            if form.is_poll.data and form.poll_options.data:
+                options = [o.strip() for o in form.poll_options.data.split(',')]
+                poll_data = {"options": [{"text": o, "voters": []} for o in options]}
+
             new_post = Post(
                 title=title,
                 content=content,
                 timestamp=timestamp,
                 user_id=user_id,
-                images=image_urls
+                images=image_urls,
+                visibility=visibility,
+                poll=poll_data,
+                is_draft=is_draft
             )
             new_post.save_to_db()
 
@@ -610,6 +709,110 @@ def bookmarks():
         p2.append(i)
     return render_template('home.html', posts=p2, title="My Bookmarks")
 
+@app.route("/block/<username>", methods=["POST"])
+@login_required
+def block_user(username):
+    v = get_idd(username)
+    if v == current_user._id:
+        return jsonify({"success": False, "message": "You cannot block yourself!"}), 400
+
+    db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"blocked_users": v}})
+    # Also unfollow
+    db.userdb.update_one({"_id": current_user._id}, {"$pull": {"following": v}})
+    db.userdb.update_one({"_id": v}, {"$pull": {"followers": current_user._id}})
+
+    return jsonify({"success": True, "message": f"User {username} blocked."})
+
+@app.route("/react/<post_id>", methods=['POST'])
+@login_required
+def post_react(post_id):
+    reaction_type = request.json.get('type')
+    # Use existing reactions logic in db or create new
+    db.postdb.update_one(
+        {"_id": post_id},
+        {"$addToSet": {f"reactions.{reaction_type}": current_user._id}}
+    )
+    post = db.postdb.find_one({"_id": post_id})
+    return jsonify({"success": True, "reactions": post.get('reactions', {})})
+
+@app.route("/report/<type>/<id>", methods=['POST'])
+@login_required
+def report_content(type, id):
+    reason = request.json.get('reason', 'No reason provided')
+    db.reportsdb.insert_one({
+        "type": type, # 'post', 'comment', 'user'
+        "target_id": id,
+        "reporter_id": current_user._id,
+        "reason": reason,
+        "timestamp": dt.now(),
+        "status": "pending"
+    })
+    return jsonify({"success": True, "message": "Report submitted."})
+
+@app.route("/admin/dashboard")
+@login_required
+def admin_dashboard():
+    if not current_user.json().get('is_admin'):
+        abort(403)
+
+    reports = db.reportsdb.find({"status": "pending"}).sort("timestamp", -1)
+    users = db.userdb.find().limit(50)
+    return render_template('admin/dashboard.html', reports=reports, users=users)
+
+@app.route("/admin/ban/<user_id>", methods=['POST'])
+@login_required
+def ban_user(user_id):
+    if not current_user.json().get('is_admin'):
+        abort(403)
+
+    db.userdb.update_one({"_id": user_id}, {"$set": {"is_banned": True}})
+    db.audit_logs.insert_one({
+        "action": "ban_user",
+        "admin_id": current_user._id,
+        "target_id": user_id,
+        "timestamp": dt.now()
+    })
+    flash("User banned.", "success")
+    return redirect(url_for('admin_dashboard'))
+
+
+
+@app.route("/api/post/<post_id>/view", methods=['POST'])
+@login_required
+def track_view(post_id):
+    db.postdb.update_one({"_id": post_id}, {"$inc": {"views": 1}})
+    return jsonify({"success": True})
+
+@app.route("/groups")
+@login_required
+def groups_list():
+    groups = db.groupsdb.find()
+    return render_template('groups/list.html', groups=groups)
+
+@app.route("/group/create", methods=['GET', 'POST'])
+@login_required
+def create_group():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        desc = request.form.get('description')
+        db.groupsdb.insert_one({
+            "name": name,
+            "description": desc,
+            "owner_id": current_user._id,
+            "members": [current_user._id],
+            "timestamp": dt.now()
+        })
+        flash("Group created!", "success")
+        return redirect(url_for('groups_list'))
+    return render_template('forms/create_group.html')
+
+@app.route("/group/join/<group_id>", methods=['POST'])
+@login_required
+def join_group(group_id):
+    db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"members": current_user._id}})
+    flash("Joined group!", "success")
+    return redirect(url_for('groups_list'))
+
 @app.route("/dislike", methods=['POST'])
 @login_required
 def dislike():
@@ -640,11 +843,13 @@ def settings():
         form.username.data = current_user.username
         form.content.data = User.get_aboutme(current_user._id)
         form.email.data = current_user.email
+        form.is_private.data = current_user.json().get('is_private', False)
 
     if form.validate_on_submit():
         username = form.username.data
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
+        is_private = form.is_private.data
         check = db.userdb.find_one({"username": form.username.data})
         if current_user.username == username:
             pass
@@ -680,6 +885,7 @@ def settings():
             User.change_username(current_user._id, username)
             User.addaboutme(current_user._id, aboutme)
             User.change_email(current_user._id, email)
+            db.userdb.update_one({"_id": current_user._id}, {"$set": {"is_private": is_private}})
             file = request.files.get("pfp")
             if file:
                 if file.filename == "":
@@ -1586,13 +1792,19 @@ def edit_post(post_id):
     if form.validate_on_submit():
         content = filter_profanity(form.content.data)
         if len(content) in range(POST_MIN,POST_MAX+1):
+            # Save current state to edit history before updating
             db.postdb.update_one(
                 {"_id": post_id},
                 {
                     "$set": {
                         "title": form.title.data,
                         "content": content
-                    }
+                    },
+                    "$addToSet": {"edit_history": {
+                        "title": post.title,
+                        "content": post.content,
+                        "timestamp": dt.now()
+                    }}
                 }
             )
             flash("Post updated successfully!", "success")

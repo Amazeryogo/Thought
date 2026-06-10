@@ -17,10 +17,16 @@ class CreateUserForm(FlaskForm):
     submit = SubmitField('Join Thought')
 
 
+from wtforms import SelectField
+
 class PostForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
     content = TextAreaField('Content', validators=[DataRequired()])
     images = MultipleFileField('Images')
+    visibility = SelectField('Visibility', choices=[('public', 'Public'), ('followers', 'Followers Only'), ('private', 'Private')])
+    is_poll = BooleanField('Create Poll')
+    poll_options = StringField('Poll Options (comma separated)')
+    is_draft = BooleanField('Save as Draft')
     submit = SubmitField('Post')
 
 
@@ -28,6 +34,7 @@ class SettingsForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     content = TextAreaField('About Me', validators=[DataRequired()])
+    is_private = BooleanField('Private Account')
     submit = SubmitField('Update')
 
 

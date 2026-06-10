@@ -9,7 +9,7 @@ import re
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None):
+    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None, **kwargs):
         if aboutme is None:
             aboutme = "New to Thought"
             self.aboutme = aboutme
@@ -211,7 +211,7 @@ def get_username(_id):
     return user['username'] if user else "Unknown"
 
 class Notification:
-    def __init__(self, user_id, type, sender_id, post_id=None, comment_id=None, timestamp=None, read=False, _id=None):
+    def __init__(self, user_id, type, sender_id, post_id=None, comment_id=None, timestamp=None, read=False, _id=None, **kwargs):
         self._id = uuid.uuid4().hex if _id is None else _id
         self.user_id = user_id
         self.type = type # 'like', 'comment', 'follow', 'mention'
@@ -252,7 +252,7 @@ class Notification:
     def mark_all_read(cls, user_id):
         db.notificationsdb.update_many({"user_id": user_id, "read": False}, {"$set": {"read": True}})
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
+    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False, **kwargs):
         self.sender = sender
         self.receiver = receiver
         self.timestamp = timestamp
@@ -368,7 +368,7 @@ class Messages:
 
 
 class Post:
-    def __init__(self, title, content, timestamp, user_id, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
+    def __init__(self, title, content, timestamp, user_id, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None, **kwargs):
         self.title = title
         self.content = content
         self.user_id = user_id
@@ -463,7 +463,7 @@ class Post:
 
 class Comment:
     def __init__(self, username, post_id, user_id, content, parent_comment_id=None, _id=None, timestamp=None,
-                 likes=None, liked_by=None):
+                 likes=None, liked_by=None, **kwargs):
         self.post_id = post_id
         self.user_id = user_id
         self.username = get_username(user_id)
@@ -546,7 +546,7 @@ class Comment:
 
 
 class Repository:
-    def __init__(self, name, owner, description=None, _id=None, timestamp=None):
+    def __init__(self, name, owner, description=None, _id=None, timestamp=None, **kwargs):
         self.name = name
         self.owner = owner
         self.description = description if description else "No description"

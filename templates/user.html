@@ -33,11 +33,21 @@
                                 {{ user.get_following_number() }}
                             </span>
                         </p>
+                        <div class="d-flex gap-3 text-muted small">
+                            <span>Posts: {{ stats.total_posts }}</span>
+                            <span>Likes: {{ stats.total_likes }}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-end gap-3 bg-white">
 
                     {% if user.username != current_user.username %}
+                        <span class="material-symbols-outlined"
+                              style="cursor: pointer;"
+                              onclick="if(confirm('Block this user?')) { fetch('/block/{{ user.username }}', {method: 'POST'}).then(() => location.reload()); }"
+                              title="Block User">
+                              block
+                        </span>
                         <span class="material-symbols-outlined"
                               style="cursor: pointer;"
                               onclick="location.href='/message/{{ user.username }}'">
@@ -71,9 +81,20 @@
 
 <hr class="my-5">
 
-{% for post in posts %}
-    {% include '_post.html' %}
-{% endfor %}
+{% if private %}
+    <div class="text-center py-5">
+        <span class="material-symbols-outlined display-1 text-muted">lock</span>
+        <h4 class="mt-3">This account is private</h4>
+        <p class="text-muted">Follow them to see their posts.</p>
+    </div>
+{% else %}
+    {% for post in posts %}
+        {% include '_post.html' %}
+    {% endfor %}
+    {% if not posts %}
+        <p class="text-center text-muted">No posts yet.</p>
+    {% endif %}
+{% endif %}
 
 <div class="modal fade" id="followModal" tabindex="-1" aria-labelledby="followModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable">

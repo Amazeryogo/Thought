@@ -196,6 +196,7 @@ class Cursor:
         self._results = None
         self._sort_config = None
         self._limit_n = None
+        self._skip_n = 0
 
     def sort(self, key, order=ASCENDING):
         self._sort_config = (key, order)
@@ -205,12 +206,18 @@ class Cursor:
         self._limit_n = n
         return self
 
+    def skip(self, n):
+        self._skip_n = n
+        return self
+
     def _fetch(self):
         if self._results is None:
-            # We don't have server-side sorting/limiting yet in the 'find' command,
-            # but we can pass them to the server if we update db_server.py
-            # For now, let's keep it simple but lazy.
-            self._results = self.collection._send_cmd('find', query=self.collection._serialize_query(self.query)) or []
+            # Implement server-side limit/skip
+            self._results = self.collection._send_cmd('find',
+                query=self.collection._serialize_query(self.query),
+                limit=self._limit_n,
+                skip=self._skip_n
+            ) or []
 
             if self._sort_config:
                 key, order = self._sort_config

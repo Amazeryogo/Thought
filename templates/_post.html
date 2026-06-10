@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
 
-<div class="card shadow-sm border-0 rounded-4 mx-auto mb-4" style="max-width: 750px;">
+<div class="card shadow-sm border-0 rounded-4 mx-auto mb-4" style="max-width: 750px;" data-post-id="{{ post._id }}">
   <div class="card-body p-4">
 
     <h2 class="card-title fw-bold text-dark mb-1" style="font-family: 'Libre Baskerville', serif;">{{ post.title }}</h2>
@@ -17,6 +17,28 @@
     <div class="card-text text-secondary mb-4 fs-6 post-content-wrapper" style="line-height: 1.6;">
       {{ post | render_post_content | safe }}
     </div>
+
+    {% if post.poll %}
+    <div class="poll-wrapper mb-4 p-3 bg-light rounded-3" id="poll-{{ post._id }}">
+        <h6 class="mb-3">Poll</h6>
+        {% for opt in post.poll.options %}
+            {% set voters = opt.get('voters', []) %}
+            {% set total_voters = post.poll.options|sum(attribute='voters'|length) %}
+            <div class="mb-2">
+                <button class="btn btn-outline-primary btn-block text-left poll-option {% if current_user._id in voters %}active{% endif %}"
+                        data-post-id="{{ post._id }}"
+                        data-index="{{ loop.index0 }}"
+                        {% if current_user._id in voters or user == current_user %}disabled{% endif %}>
+                    {{ opt.text }}
+                    <span class="float-right poll-percent">
+                        {% if total_voters > 0 %}{{ (voters|length / total_voters * 100)|round|int }}%{% else %}0%{% endif %}
+                    </span>
+                </button>
+            </div>
+        {% endfor %}
+        <small class="text-muted">{{ post.poll.options|sum(attribute='voters'|length) }} votes</small>
+    </div>
+    {% endif %}
 
     <hr class="my-3 text-muted opacity-25">
 
@@ -37,6 +59,16 @@
           </a>
         {% else %}
           <div class="d-flex align-items-center gap-2">
+            <div class="dropdown">
+              <span class="material-symbols-outlined text-success action-icon dropdown-toggle" data-toggle="dropdown" style="cursor: pointer;">add_reaction</span>
+              <div class="dropdown-menu p-2">
+                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="love">❤️</span>
+                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="haha">😂</span>
+                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="wow">😮</span>
+                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="sad">😢</span>
+                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="like">👍</span>
+              </div>
+            </div>
             <span class="like-btn material-symbols-outlined text-success action-icon" data-id="{{ post._id }}" style="cursor: pointer;" title="Like">thumb_up</span>
             <span id="like-count-{{ post._id }}" class="fw-bold text-dark">{{ post.likes }}</span>
           </div>

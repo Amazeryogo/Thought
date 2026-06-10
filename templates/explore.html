@@ -32,6 +32,28 @@
                     {% endif %}
                 </div>
             </div>
+
+            <div class="card shadow-sm rounded-4 border-0">
+                <div class="card-body">
+                    <h5 class="card-title" style="font-family: 'Abril Fatface', cursive;">🤝 Suggested Users</h5>
+                    <hr>
+                    {% if suggested %}
+                        <div class="list-group list-group-flush">
+                        {% for u in suggested %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center border-0 px-0">
+                                <div class="d-flex align-items-center">
+                                    <img src="{{ User.avatar(u._id) }}" class="rounded-circle me-2" style="width: 35px; height: 35px; object-fit: cover;">
+                                    <h6 class="mb-0"><a href="/{{ u.username }}" class="text-decoration-none">{{ u.username }}</a></h6>
+                                </div>
+                                <button class="btn btn-sm btn-outline-primary rounded-pill follow-btn" data-username="{{ u.username }}">Follow</button>
+                            </div>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No suggestions right now.</p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </div>

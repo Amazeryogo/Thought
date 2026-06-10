@@ -45,6 +45,48 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    document.querySelectorAll(".poll-option").forEach(button => {
+        button.addEventListener("click", () => {
+            const postId = button.getAttribute("data-post-id");
+            const index = button.getAttribute("data-index");
+
+            fetch(`/poll/vote/${postId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ option: parseInt(index) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(err => console.error("Error:", err));
+        });
+    });
+
+    document.querySelectorAll(".react-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const postId = btn.getAttribute("data-id");
+            const type = btn.getAttribute("data-type");
+
+            fetch(`/react/${postId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: type })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload(); // Simple for now
+                }
+            })
+            .catch(err => console.error("Error:", err));
+        });
+    });
+
     document.querySelectorAll(".bookmark-btn").forEach(button => {
         button.addEventListener("click", () => {
             const postId = button.getAttribute("data-id");
@@ -62,5 +104,19 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(err => console.error("Error:", err));
         });
+    });
+
+    // Track views
+    document.querySelectorAll(".card[data-post-id]").forEach(post => {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entries[0].isIntersecting) {
+                    const postId = post.getAttribute("data-post-id");
+                    fetch(`/api/post/${postId}/view`, { method: "POST" });
+                    observer.unobserve(post);
+                }
+            });
+        }, { threshold: 0.5 });
+        observer.observe(post);
     });
 });
