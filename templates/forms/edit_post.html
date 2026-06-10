@@ -16,13 +16,30 @@
                         </h2>
                     {% endif %}
 
-                    <form method="POST">
+                    <form method="POST" enctype="multipart/form-data">
                         {{ form.hidden_tag() }}
                         {% import "bootstrap/wtf.html" as wtf %}
                         {{ wtf.form_field(form.title) }}
                         {{ wtf.form_field(form.content) }}
-                        <button type="submit" class="btn btn-success mt-3 d-flex align-items-center gap-1">
-                            <span class="material-symbols-outlined">edit</span>
+
+                        <div class="row">
+                            <div class="col-md-6">{{ wtf.form_field(form.visibility) }}</div>
+                            <div class="col-md-6">{{ wtf.form_field(form.is_draft) }}</div>
+                        </div>
+
+                        <div class="card p-3 mb-3 bg-light border-0">
+                            {{ wtf.form_field(form.is_poll) }}
+                            {{ wtf.form_field(form.poll_options, placeholder="Option 1, Option 2, ...") }}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.images.label(class="form-label") }}
+                            {{ form.images(class="form-control") }}
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 mt-3 d-flex align-items-center justify-content-center gap-1">
+                            <span class="material-symbols-outlined">{% if p == 0 %}send{% else %}save{% endif %}</span>
+                            <span>{% if p == 0 %}Post{% else %}Update{% endif %}</span>
                         </button>
                     </form>
                 </div>

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Manage Community: {{ group.name }}</h2>
+
+    <div class="row">
+        <div class="col-md-8">
+            <h4>Join Requests</h4>
+            <div class="list-group shadow-sm rounded-4 overflow-hidden">
+                {% for r in requests %}
+                    <div class="list-group-item d-flex align-items-center p-3">
+                        <img src="{{ User.avatar(r._id) }}" class="rounded-circle me-3" style="width: 45px; height: 45px; object-fit: cover;">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0"><a href="/{{ r.username }}">{{ r.username }}</a></h6>
+                            <small class="text-muted">{{ r.aboutme|truncate(50) }}</small>
+                        </div>
+                        <div>
+                            <form action="{{ url_for('handle_group_request', action='accept', group_id=group._id, user_id=r._id) }}" method="POST" style="display: inline;">
+                                <button class="btn btn-sm btn-success">Accept</button>
+                            </form>
+                            <form action="{{ url_for('handle_group_request', action='reject', group_id=group._id, user_id=r._id) }}" method="POST" style="display: inline;">
+                                <button class="btn btn-sm btn-outline-danger">Reject</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% if not requests %}
+                    <div class="list-group-item text-center py-4">No pending requests</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

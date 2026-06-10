@@ -90,7 +90,8 @@ def load_user(user_id):
 def home():
     # Follow Feed: Show posts from people you follow + your own posts (excluding drafts)
     following = current_user.get_following()
-    feed_users = following + [current_user._id]
+    blocked = current_user.json().get('blocked_users', [])
+    feed_users = [f for f in following if f not in blocked] + [current_user._id]
 
     posts = db.postdb.find({"user_id": {"$in": feed_users}, "is_draft": {"$ne": True}}).sort("timestamp", DESCENDING).limit(20)
 
@@ -111,8 +112,9 @@ def home():
 @app.route('/explore')
 @login_required
 def explore():
-    # Global feed + Trending Hashtags (excluding drafts)
-    posts = db.postdb.find({"is_draft": {"$ne": True}}).sort("timestamp", DESCENDING).limit(20)
+    # Global feed (excluding drafts and blocked users)
+    blocked = current_user.json().get('blocked_users', [])
+    posts = db.postdb.find({"is_draft": {"$ne": True}, "user_id": {"$nin": blocked}}).sort("timestamp", DESCENDING).limit(20)
 
     # Simple decay: score = count / (hours_since_last_post + 1)^1.5
     all_hashtags = db.hashtagsdb.find()
@@ -202,6 +204,19 @@ def poll_vote(post_id):
     # Re-fetch for updated counts
     updated_post = db.postdb.find_one({"_id": post_id})
     return jsonify({"success": True, "poll": updated_post['poll']})
+
+@app.route("/follow_request/<action>/<user_id>", methods=["POST"])
+@login_required
+def handle_follow_request(action, user_id):
+    if action == "accept":
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"follow_requests": user_id}, "$addToSet": {"followers": user_id}})
+        db.userdb.update_one({"_id": user_id}, {"$addToSet": {"following": current_user._id}})
+        Notification.create(user_id, 'follow', current_user._id)
+        flash("Follow request accepted.", "success")
+    else:
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"follow_requests": user_id}})
+        flash("Follow request rejected.", "info")
+    return redirect(url_for('notifications'))
 
 @app.route("/api/user/active", methods=["POST"])
 @login_required
@@ -436,8 +451,10 @@ def user(username):
             return redirect('/404')
 
     # Check if blocked
-    if current_user._id in user.json().get('blocked_users', []):
-        flash("You are blocked by this user.", "danger")
+    blocked_by_them = current_user._id in user.json().get('blocked_users', [])
+    blocked_by_me = user._id in current_user.json().get('blocked_users', [])
+    if blocked_by_them or blocked_by_me:
+        flash("Profile unavailable.", "danger")
         return redirect(url_for('home'))
 
     avatar = User.avatar(user.username)
@@ -560,6 +577,13 @@ def login():
 @rate_limit(limit=5, period=300) # Limit post creation
 def createnewpost():
     form = PostForm()
+    # Populate communities
+    user_groups = db.groupsdb.find({"members": current_user._id})
+    group_choices = [('account', 'My Account')]
+    for g in user_groups:
+        group_choices.append((g['_id'], f"Group: {g['name']}"))
+    form.post_to.choices = group_choices
+
     p = 0
     if form.validate_on_submit():
         title = form.title.data
@@ -584,22 +608,32 @@ def createnewpost():
         if len(content) in range(POST_MIN, POST_MAX+1):
             visibility = form.visibility.data
             is_draft = form.is_draft.data
+            post_to = form.post_to.data
             poll_data = None
             if form.is_poll.data and form.poll_options.data:
+                # If posting to group, must be owner or mod
+                if post_to != 'account':
+                    group = Group.get_by_id(post_to)
+                    if group.owner_id != current_user._id and current_user._id not in group.mods:
+                        flash("Only moderators can create polls in this community.", "danger")
+                        return render_template('forms/edit_post.html', form=form, p=p)
+
                 options = [o.strip() for o in form.poll_options.data.split(',')]
                 poll_data = {"options": [{"text": o, "voters": []} for o in options]}
 
-            new_post = Post(
-                title=title,
-                content=content,
-                timestamp=timestamp,
-                user_id=user_id,
-                images=image_urls,
-                visibility=visibility,
-                poll=poll_data,
-                is_draft=is_draft
-            )
-            new_post.save_to_db()
+            new_post_data = {
+                "title": title,
+                "content": content,
+                "timestamp": timestamp,
+                "user_id": user_id,
+                "images": image_urls,
+                "visibility": visibility,
+                "poll": poll_data,
+                "is_draft": is_draft,
+                "group_id": post_to if post_to != 'account' else None
+            }
+            res = db.postdb.insert_one(new_post_data)
+            new_post = Post(**res)
 
             # Parse hashtags
             hashtags = re.findall(r'#(\w+)', content)
@@ -806,12 +840,120 @@ def create_group():
         return redirect(url_for('groups_list'))
     return render_template('forms/create_group.html')
 
+@app.route("/group/<group_id>")
+@login_required
+def group_view(group_id):
+    group_data = db.groupsdb.find_one({"_id": group_id})
+    if not group_data:
+        abort(404)
+    group = Group(**group_data)
+    posts = db.postdb.find({"group_id": group_id, "is_draft": {"$ne": True}}).sort("timestamp", DESCENDING)
+    is_member = current_user._id in group.members
+    is_mod = current_user._id in group.mods or group.owner_id == current_user._id
+
+    # Sidebar data
+    owner = User.get_by_id(group.owner_id)
+    mods = [User.get_by_id(uid) for uid in group.mods]
+    members = [User.get_by_id(uid) for uid in group.members[:10]] # Limit preview
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+
+    return render_template('groups/view.html',
+                           group=group,
+                           posts=p2,
+                           is_member=is_member,
+                           is_mod=is_mod,
+                           owner=owner,
+                           mods=mods,
+                           members=members,
+                           User=User)
+
+@app.route("/group/<group_id>/stats")
+@login_required
+def group_stats(group_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    group_posts = db.postdb.find({"group_id": group_id})
+    total_views = sum(p.get('views', 0) for p in group_posts)
+
+    stats = {
+        "member_count": len(group.members),
+        "post_count": len(list(db.postdb.find({"group_id": group_id}))),
+        "total_views": total_views,
+        "request_count": len(group.join_requests)
+    }
+    return render_template('groups/stats.html', group=group, stats=stats)
+
+@app.route("/group/<group_id>/appoint_mod/<user_id>", methods=['POST'])
+@login_required
+def appoint_mod(group_id, user_id):
+    group = Group.get_by_id(group_id)
+    if not group or group.owner_id != current_user._id:
+        abort(403)
+
+    db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"mods": user_id}})
+    flash("Moderator appointed.", "success")
+    return redirect(url_for('group_view', group_id=group_id))
+
 @app.route("/group/join/<group_id>", methods=['POST'])
 @login_required
 def join_group(group_id):
-    db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"members": current_user._id}})
-    flash("Joined group!", "success")
+    group = Group.get_by_id(group_id)
+    if not group:
+        abort(404)
+    if current_user._id in group.members:
+        flash("Already a member.", "info")
+    elif current_user._id in group.join_requests:
+        flash("Request already pending.", "info")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"join_requests": current_user._id}})
+        Notification.create(group.owner_id, 'group_request', current_user._id, comment_id=group_id)
+        flash("Join request sent!", "success")
     return redirect(url_for('groups_list'))
+
+@app.route("/group/leave/<group_id>", methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = Group.get_by_id(group_id)
+    if not group:
+        abort(404)
+    if group.owner_id == current_user._id:
+        flash("Owners cannot leave their community. Delete it instead?", "warning")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"members": current_user._id, "mods": current_user._id}})
+        flash("You have left the community.", "info")
+    return redirect(url_for('groups_list'))
+
+@app.route("/group/manage/<group_id>")
+@login_required
+def group_manage(group_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    requests = [User.get_by_id(uid) for u_id in group.join_requests if (uid := u_id)]
+    return render_template('groups/manage.html', group=group, requests=requests)
+
+@app.route("/group/request/<action>/<group_id>/<user_id>", methods=["POST"])
+@login_required
+def handle_group_request(action, group_id, user_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    if action == "accept":
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"join_requests": user_id}, "$addToSet": {"members": user_id}})
+        Notification.create(user_id, 'group_accept', current_user._id, comment_id=group_id)
+        flash("Request accepted.", "success")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"join_requests": user_id}})
+        flash("Request rejected.", "info")
+    return redirect(url_for('group_manage', group_id=group_id))
 
 @app.route("/dislike", methods=['POST'])
 @login_required
@@ -1039,6 +1181,12 @@ def send_message_v2():
     if not recipient or not content:
         return jsonify({"success": False, "error": "Missing data"}), 400
 
+    # Check blocking
+    recipient_user = User.get_by_id(recipient)
+    if recipient_user:
+        if current_user._id in recipient_user.blocked_users or recipient in current_user.json().get('blocked_users', []):
+            return jsonify({"success": False, "error": "Message blocked."}), 403
+
     msg = Messages.send_message(sender=current_user._id, receiver=recipient, message=content)
     db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": dt.utcnow()}})
     return jsonify({"success": True, "message": msg})
@@ -1139,36 +1287,32 @@ def toggle_follow(username):
     if v == current_user._id:
         return jsonify({"success": False, "message": "You cannot follow yourself!"}), 400
 
-    target = db.userdb.find_one({"_id": v})
-    if not target:
+    target_data = db.userdb.find_one({"_id": v})
+    if not target_data:
         return jsonify({"success": False, "message": "User not found!"}), 404
 
-    is_following = db.userdb.find_one({
-        "_id": v,
-        "followers": current_user._id
-    })
+    target = User(**target_data)
+
+    is_following = current_user._id in target.followers
 
     if is_following:
-        db.userdb.update_one(
-            {"_id": v},
-            {"$pull": {"followers": current_user._id}}
-        )
-        db.userdb.update_one(
-            {"_id": current_user._id},
-            {"$pull": {"following": v}}
-        )
+        db.userdb.update_one({"_id": v}, {"$pull": {"followers": current_user._id}})
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"following": v}})
         action = "unfollowed"
     else:
-        db.userdb.update_one(
-            {"_id": v},
-            {"$addToSet": {"followers": current_user._id}}
-        )
-        db.userdb.update_one(
-            {"_id": current_user._id},
-            {"$addToSet": {"following": v}}
-        )
-        action = "followed"
-        Notification.create(v, 'follow', current_user._id)
+        if target.is_private:
+            if current_user._id in target.follow_requests:
+                db.userdb.update_one({"_id": v}, {"$pull": {"follow_requests": current_user._id}})
+                action = "request cancelled"
+            else:
+                db.userdb.update_one({"_id": v}, {"$addToSet": {"follow_requests": current_user._id}})
+                Notification.create(v, 'follow_request', current_user._id)
+                action = "requested"
+        else:
+            db.userdb.update_one({"_id": v}, {"$addToSet": {"followers": current_user._id}})
+            db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"following": v}})
+            Notification.create(v, 'follow', current_user._id)
+            action = "followed"
 
     # Get updated count
     updated_user = db.userdb.find_one({"_id": v})

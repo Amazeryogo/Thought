@@ -10,26 +10,30 @@ from datetime import datetime as bruh
 
 class User(UserMixin):
     def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None, **kwargs):
-        if aboutme is None:
-            aboutme = "New to Thought"
-            self.aboutme = aboutme
-        else:
-            self.aboutme = aboutme
-
         self.username = username
         self.email = email
         self.password = password
         self.invcode = invcode
-        self._id = uuid.uuid4().hex if _id is None else _id
-        self.git_token = git_token if git_token is not None else uuid.uuid4().hex
-        self.posts = db.postdb.find({"user_id": self._id})
+        self._id = _id or uuid.uuid4().hex
+        self.aboutme = aboutme or "New to Thought"
+        self.git_token = git_token or uuid.uuid4().hex
         self.last_seen = last_seen
-        try:
-            self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
-            self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
-        except:
-            self.followers = []
-            self.following = []
+
+        # Load from DB to ensure arrays are present, or use kwargs
+        self.followers = followers or kwargs.get('followers') or []
+        self.following = following or kwargs.get('following') or []
+        self.follow_requests = kwargs.get('follow_requests', [])
+        self.blocked_users = kwargs.get('blocked_users', [])
+        self.is_private = kwargs.get('is_private', False)
+        self.is_admin = kwargs.get('is_admin', False)
+        self.is_banned = kwargs.get('is_banned', False)
+        self.last_data_export = kwargs.get('last_data_export')
+        self.bookmarks = kwargs.get('bookmarks', [])
+
+        # Store other extra kwargs
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                setattr(self, k, v)
     def is_authenticated(self):
         return True
 
@@ -151,8 +155,15 @@ class User(UserMixin):
             "password": self.password,
             "followers": self.followers,
             "following": self.following,
+            "follow_requests": self.follow_requests,
+            "blocked_users": self.blocked_users,
+            "is_private": self.is_private,
+            "is_admin": self.is_admin,
+            "is_banned": self.is_banned,
             "last_seen": self.last_seen,
-            "git_token": self.git_token
+            "git_token": self.git_token,
+            "last_data_export": self.last_data_export,
+            "bookmarks": self.bookmarks
         }
 
     @classmethod
@@ -209,6 +220,37 @@ def get_idd(username):
 def get_username(_id):
     user = db.userdb.find_one({"_id": _id})
     return user['username'] if user else "Unknown"
+
+class Group:
+    def __init__(self, name, description, owner_id, members=None, mods=None, join_requests=None, timestamp=None, _id=None, **kwargs):
+        self._id = _id or uuid.uuid4().hex
+        self.name = name
+        self.description = description
+        self.owner_id = owner_id
+        self.members = members or [owner_id]
+        self.mods = mods or []
+        self.join_requests = join_requests or []
+        self.timestamp = timestamp or bruh.now()
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "name": self.name,
+            "description": self.description,
+            "owner_id": self.owner_id,
+            "members": self.members,
+            "mods": self.mods,
+            "join_requests": self.join_requests,
+            "timestamp": self.timestamp
+        }
+
+    def save_to_db(self):
+        db.groupsdb.insert_one(self.json())
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.groupsdb.find_one({"_id": _id})
+        return cls(**data) if data else None
 
 class Notification:
     def __init__(self, user_id, type, sender_id, post_id=None, comment_id=None, timestamp=None, read=False, _id=None, **kwargs):
@@ -372,14 +414,21 @@ class Post:
         self.title = title
         self.content = content
         self.user_id = user_id
-        self.username = get_username(user_id)
+        self.username = username or get_username(user_id)
         self.timestamp = timestamp
         self.likes = likes
         self.liked_by = liked_by if liked_by is not None else []
         self.dislikes = dislikes
         self.disliked_by = disliked_by if disliked_by is not None else []
-        self._id = uuid.uuid4().hex if _id is None else _id
+        self._id = _id or uuid.uuid4().hex
         self.images = images if images is not None else []
+
+        self.visibility = kwargs.get('visibility', 'public')
+        self.poll = kwargs.get('poll')
+        self.is_draft = kwargs.get('is_draft', False)
+        self.edit_history = kwargs.get('edit_history', [])
+        self.reactions = kwargs.get('reactions', {})
+        self.views = kwargs.get('views', 0)
 
     def json(self):
         return {
@@ -393,7 +442,13 @@ class Post:
             "dislikes": self.dislikes,
             "liked_by": self.liked_by,
             "disliked_by": self.disliked_by,
-            "images": self.images
+            "images": self.images,
+            "visibility": self.visibility,
+            "poll": self.poll,
+            "is_draft": self.is_draft,
+            "edit_history": self.edit_history,
+            "reactions": self.reactions,
+            "views": self.views
         }
 
     @classmethod

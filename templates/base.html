@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Gentium+Plus:wght@700&family=Moirai+One&family=PT+Sans&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap" rel="stylesheet">
       <title>Thought</title>
-    <style src="{{ url_for('static', filename='css/base.css') }}"></style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 
   </head>
   <body class="{% if session.get('theme') == 'dark' %}dark-mode{% endif %}">

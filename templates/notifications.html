@@ -22,6 +22,21 @@
                                 mentioned you in a <a href="{{ url_for('post_view', post_id=n.post_id) }}">post</a>.
                             {% elif n.type == 'repost' %}
                                 reposted your <a href="{{ url_for('post_view', post_id=n.post_id) }}">post</a>.
+                            {% elif n.type == 'follow_request' %}
+                                wants to follow you.
+                                <div class="mt-2">
+                                    <form action="{{ url_for('handle_follow_request', action='accept', user_id=n.sender_id) }}" method="POST" style="display: inline;">
+                                        <button class="btn btn-sm btn-success">Accept</button>
+                                    </form>
+                                    <form action="{{ url_for('handle_follow_request', action='reject', user_id=n.sender_id) }}" method="POST" style="display: inline;">
+                                        <button class="btn btn-sm btn-outline-danger">Reject</button>
+                                    </form>
+                                </div>
+                            {% elif n.type == 'group_request' %}
+                                wants to join your group <a href="{{ url_for('group_view', group_id=n.comment_id) }}">{{ Group.get_by_id(n.comment_id).name }}</a>.
+                                <div class="mt-2">
+                                    <a href="{{ url_for('group_manage', group_id=n.comment_id) }}" class="btn btn-sm btn-primary">Manage Requests</a>
+                                </div>
                             {% endif %}
                         </p>
                         <small class="text-muted">{{ n.timestamp|format_timestamp }}</small>

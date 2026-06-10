@@ -24,6 +24,7 @@ class PostForm(FlaskForm):
     content = TextAreaField('Content', validators=[DataRequired()])
     images = MultipleFileField('Images')
     visibility = SelectField('Visibility', choices=[('public', 'Public'), ('followers', 'Followers Only'), ('private', 'Private')])
+    post_to = SelectField('Post To', choices=[('account', 'My Account')])
     is_poll = BooleanField('Create Poll')
     poll_options = StringField('Poll Options (comma separated)')
     is_draft = BooleanField('Save as Draft')

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 style="font-family: 'Abril Fatface', cursive;">Analytics: {{ group.name }}</h2>
+        <a href="{{ url_for('group_view', group_id=group._id) }}" class="btn btn-outline-secondary">Back to Community</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 text-center p-4 rounded-4">
+                <h1 class="display-4 text-primary">{{ stats.member_count }}</h1>
+                <p class="text-muted mb-0">Members</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 text-center p-4 rounded-4">
+                <h1 class="display-4 text-success">{{ stats.post_count }}</h1>
+                <p class="text-muted mb-0">Posts</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 text-center p-4 rounded-4">
+                <h1 class="display-4 text-info">{{ stats.total_views }}</h1>
+                <p class="text-muted mb-0">Total Views</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 text-center p-4 rounded-4">
+                <h1 class="display-4 text-warning">{{ stats.request_count }}</h1>
+                <p class="text-muted mb-0">Pending Requests</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

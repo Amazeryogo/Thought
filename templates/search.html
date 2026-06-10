@@ -21,14 +21,14 @@
     <section class="mb-5">
         <h4>Users</h4>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            {% for user in users %}
+            {% for u in users %}
             <div class="col">
-                <div class="card h-100 shadow-sm rounded-4">
+                <div class="card h-100 shadow-sm rounded-4 border-0">
                     <div class="card-body d-flex align-items-center">
-                        <img src="{{ User.avatar(user._id) }}" class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                        <img src="{{ User.avatar(u._id) }}" class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">
                         <div>
-                            <h5 class="mb-0"><a href="/{{ user.username }}" class="text-decoration-none">{{ user.username }}</a></h5>
-                            <small class="text-muted">{{ user.aboutme|truncate(30) }}</small>
+                            <h5 class="mb-0"><a href="/{{ u.username }}" class="text-decoration-none">{{ u.username }}</a></h5>
+                            <small class="text-muted">{{ u.aboutme|truncate(30) }}</small>
                         </div>
                     </div>
                 </div>

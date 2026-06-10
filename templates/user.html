@@ -57,8 +57,15 @@
                               class="material-symbols-outlined"
                               style="cursor: pointer;"
                               data-username="{{ user.username }}"
-                              data-following="{{ 'true' if current_user.username in user.followers else 'false' }}">
-                            {{ 'remove' if current_user.username in user.followers else 'add' }}
+                              data-following="{{ 'true' if current_user._id in user.followers else 'false' }}"
+                              data-requested="{{ 'true' if current_user._id in user.follow_requests else 'false' }}">
+                            {% if current_user._id in user.followers %}
+                                person_remove
+                            {% elif current_user._id in user.follow_requests %}
+                                hour_glass
+                            {% else %}
+                                person_add
+                            {% endif %}
                         </span>
                     {% else %}
                         <span class="material-symbols-outlined"
