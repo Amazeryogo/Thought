@@ -1,283 +1,120 @@
 import os
 import json
-import uuid
+import socket
 import re
-import fcntl
 from datetime import datetime
 from copy import deepcopy
 
 ASCENDING = 1
 DESCENDING = -1
+PORT = 9001
 
 class Database:
     def __init__(self, db_path='DB'):
-        self.db_path = os.path.abspath(db_path)
-        if not os.path.exists(self.db_path):
-            os.makedirs(self.db_path)
         self.collections = {}
 
     def __getattr__(self, name):
         if name not in self.collections:
-            self.collections[name] = Collection(self.db_path, name)
+            self.collections[name] = Collection(name)
         return self.collections[name]
 
     def __getitem__(self, name):
         return getattr(self, name)
 
 class Collection:
-    def __init__(self, db_path, name):
-        self.file_path = os.path.join(db_path, f"{name}.json")
-        self.lock_path = os.path.join(db_path, f"{name}.lock")
-        if not os.path.exists(self.file_path):
-            with open(self.file_path, 'w') as f:
-                json.dump([], f)
-        if not os.path.exists(self.lock_path):
-            open(self.lock_path, 'a').close()
+    def __init__(self, name):
+        self.name = name
 
-    def _lock(self, mode):
-        if not os.path.exists(self.lock_path):
-            open(self.lock_path, 'a').close()
-        self._lock_file = open(self.lock_path, 'r')
-        fcntl.flock(self._lock_file, mode)
+    def _send_cmd(self, cmd, **kwargs):
+        # Convert any regex objects to a serializable format
+        if 'query' in kwargs:
+            kwargs['query'] = self._serialize_query(kwargs['query'])
+        if 'pipeline' in kwargs:
+            kwargs['pipeline'] = self._serialize_pipeline(kwargs['pipeline'])
+        if 'doc' in kwargs:
+            kwargs['doc'] = self._serialize_doc(kwargs['doc'])
+        if 'update' in kwargs:
+            kwargs['update'] = self._serialize_doc(kwargs['update'])
 
-    def _unlock(self):
-        fcntl.flock(self._lock_file, fcntl.LOCK_UN)
-        self._lock_file.close()
+        request = {'cmd': cmd, 'col': self.name, **kwargs}
 
-    def _load(self):
-        if not os.path.exists(self.file_path):
-            return []
-        with open(self.file_path, 'r') as f:
-            content = f.read()
-            if not content:
-                return []
-            data = json.loads(content)
-            return [self._json_deserial(d) for d in data]
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect(('127.0.0.1', PORT))
+                s.sendall((json.dumps(request) + "\n").encode('utf-8'))
 
-    def _save(self, data):
-        temp_path = self.file_path + ".tmp"
-        with open(temp_path, 'w') as f:
-            json.dump(data, f, default=self._json_serial)
-        os.rename(temp_path, self.file_path)
+                response_data = b""
+                while True:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    response_data += chunk
+                    if b"\n" in response_data:
+                        break
 
-    @staticmethod
-    def _json_serial(obj):
-        if isinstance(obj, datetime):
-            return {"$date": obj.isoformat()}
-        return str(obj)
+                response = json.loads(response_data.decode('utf-8'))
+                return self._deserialize_response(response)
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            return None
 
-    def _json_deserial(self, data):
+    def _serialize_query(self, query):
+        if not isinstance(query, dict):
+            return query
+        new_query = {}
+        for k, v in query.items():
+            if hasattr(v, 'pattern'): # Regex object
+                new_query[k] = f"__RE__{v.pattern}|{v.flags}"
+            elif isinstance(v, dict):
+                new_query[k] = self._serialize_query(v)
+            elif isinstance(v, list):
+                new_query[k] = [self._serialize_query(i) for i in v]
+            else:
+                new_query[k] = self._serialize_doc(v)
+        return new_query
+
+    def _serialize_doc(self, doc):
+        if isinstance(doc, datetime):
+            return {"$date": doc.isoformat()}
+        if isinstance(doc, dict):
+            return {k: self._serialize_doc(v) for k, v in doc.items()}
+        if isinstance(doc, list):
+            return [self._serialize_doc(i) for i in doc]
+        return doc
+
+    def _serialize_pipeline(self, pipeline):
+        return [self._serialize_query(stage) for stage in pipeline]
+
+    def _deserialize_response(self, data):
         if isinstance(data, dict):
             if "$date" in data:
                 return datetime.fromisoformat(data["$date"])
-            return {k: self._json_deserial(v) for k, v in data.items()}
+            return {k: self._deserialize_response(v) for k, v in data.items()}
         if isinstance(data, list):
-            return [self._json_deserial(v) for v in data]
+            return [self._deserialize_response(i) for i in data]
         return data
 
-    def _get_nested(self, doc, key):
-        parts = key.split('.')
-        val = doc
-        for p in parts:
-            if isinstance(val, dict):
-                val = val.get(p)
-            else:
-                return None
-        return val
-
-    def _match(self, doc, query):
-        for key, value in query.items():
-            if key == "$or":
-                if not any(self._match(doc, q) for q in value):
-                    return False
-                continue
-
-            doc_val = self._get_nested(doc, key)
-
-            if isinstance(value, dict):
-                for op, op_val in value.items():
-                    if op == "$lt":
-                        if not (doc_val is not None and doc_val < op_val): return False
-                    elif op == "$gt":
-                        if not (doc_val is not None and doc_val > op_val): return False
-                    elif op == "$in":
-                        if doc_val not in op_val: return False
-                    elif op == "$ne":
-                        if doc_val == op_val: return False
-                    elif op == "$regex":
-                        if not (isinstance(doc_val, str) and re.search(op_val, doc_val, re.I if isinstance(op_val, str) else 0)):
-                            return False
-            elif hasattr(value, 'search'): # Regex object
-                if not (isinstance(doc_val, str) and value.search(doc_val)):
-                    return False
-            else:
-                if doc_val != value:
-                    return False
-        return True
-
     def find(self, query=None):
-        query = query or {}
-        self._lock(fcntl.LOCK_SH)
-        try:
-            data = self._load()
-            results = [d for d in data if self._match(d, query)]
-            return Cursor(results)
-        finally:
-            self._unlock()
+        results = self._send_cmd('find', query=self._serialize_query(query)) or []
+        return Cursor(results)
 
     def find_one(self, query=None):
-        query = query or {}
-        self._lock(fcntl.LOCK_SH)
-        try:
-            data = self._load()
-            for doc in data:
-                if self._match(doc, query):
-                    return doc
-            return None
-        finally:
-            self._unlock()
+        return self._send_cmd('find_one', query=self._serialize_query(query))
 
     def insert_one(self, document):
-        self._lock(fcntl.LOCK_EX)
-        try:
-            data = self._load()
-            doc = deepcopy(document)
-            if "_id" not in doc:
-                doc["_id"] = uuid.uuid4().hex
-            data.append(doc)
-            self._save(data)
-            return doc
-        finally:
-            self._unlock()
+        return self._send_cmd('insert_one', doc=self._serialize_doc(document))
 
     def update_one(self, query, update):
-        self._lock(fcntl.LOCK_EX)
-        try:
-            data = self._load()
-            updated = False
-            for doc in data:
-                if self._match(doc, query):
-                    self._apply_update(doc, update)
-                    updated = True
-                    break
-            if updated:
-                self._save(data)
-            return updated
-        finally:
-            self._unlock()
+        return self._send_cmd('update_one', query=self._serialize_query(query), update=self._serialize_doc(update)) > 0
 
     def update_many(self, query, update):
-        self._lock(fcntl.LOCK_EX)
-        try:
-            data = self._load()
-            updated_count = 0
-            for doc in data:
-                if self._match(doc, query):
-                    self._apply_update(doc, update)
-                    updated_count += 1
-            if updated_count > 0:
-                self._save(data)
-            return updated_count
-        finally:
-            self._unlock()
+        return self._send_cmd('update_many', query=self._serialize_query(query), update=self._serialize_doc(update))
 
     def delete_one(self, query):
-        self._lock(fcntl.LOCK_EX)
-        try:
-            data = self._load()
-            for i, doc in enumerate(data):
-                if self._match(doc, query):
-                    data.pop(i)
-                    self._save(data)
-                    return True
-            return False
-        finally:
-            self._unlock()
-
-    def _apply_update(self, doc, update):
-        if "$set" in update:
-            for k, v in update["$set"].items():
-                # Note: nested $set not fully implemented for simplicity
-                doc[k] = v
-        if "$pull" in update:
-            for k, v in update["$pull"].items():
-                if k in doc and isinstance(doc[k], list):
-                    doc[k] = [i for i in doc[k] if i != v]
-        if "$addToSet" in update:
-            for k, v in update["$addToSet"].items():
-                if k not in doc:
-                    doc[k] = []
-                if v not in doc[k]:
-                    doc[k].append(v)
+        return self._send_cmd('delete_one', query=self._serialize_query(query))
 
     def aggregate(self, pipeline):
-        self._lock(fcntl.LOCK_SH)
-        try:
-            data = self._load()
-            result = data
-            for stage in pipeline:
-                if "$match" in stage:
-                    result = [d for d in result if self._match(d, stage["$match"])]
-                elif "$sort" in stage:
-                    sort_keys = stage["$sort"]
-                    for key, order in reversed(list(sort_keys.items())):
-                        result.sort(key=lambda x: (v if (v := self._get_nested(x, key)) is not None else ""), reverse=(order == DESCENDING))
-                elif "$group" in stage:
-                    group_config = stage["$group"]
-                    group_id_expr = group_config["_id"]
-                    groups = {}
-                    for doc in result:
-                        gid = self._eval_expr(group_id_expr, doc)
-                        # gid might be a dict, need it to be hashable for groups dict
-                        if isinstance(gid, dict):
-                            gid_key = json.dumps(gid, sort_keys=True)
-                        else:
-                            gid_key = gid
-
-                        if gid_key not in groups:
-                            groups[gid_key] = {"_id": gid}
-                            for field, expr in group_config.items():
-                                if field == "_id": continue
-                                if "$sum" in expr:
-                                    groups[gid_key][field] = 0
-                                elif "$first" in expr:
-                                    groups[gid_key][field] = self._eval_expr(expr["$first"], doc)
-
-                        for field, expr in group_config.items():
-                            if field == "_id": continue
-                            if "$sum" in expr:
-                                val = self._eval_expr(expr["$sum"], doc)
-                                groups[gid_key][field] += val
-                    result = list(groups.values())
-            return result
-        finally:
-            self._unlock()
-
-    def _eval_expr(self, expr, doc):
-        if isinstance(expr, str) and expr.startswith("$"):
-            if expr == "$$ROOT":
-                return doc
-            key = expr[1:]
-            return self._get_nested(doc, key)
-        if isinstance(expr, dict):
-            if "$cond" in expr:
-                cond_part = expr["$cond"]
-                if isinstance(cond_part, list):
-                    cond, true_val, false_val = cond_part
-                else:
-                    cond = cond_part["if"]
-                    true_val = cond_part["then"]
-                    false_val = cond_part["else"]
-
-                if self._eval_expr(cond, doc):
-                    return self._eval_expr(true_val, doc)
-                else:
-                    return self._eval_expr(false_val, doc)
-            if "$eq" in expr:
-                return self._eval_expr(expr["$eq"][0], doc) == self._eval_expr(expr["$eq"][1], doc)
-            if "$and" in expr:
-                return all(self._eval_expr(c, doc) for c in expr["$and"])
-        return expr
+        return self._send_cmd('aggregate', pipeline=self._serialize_pipeline(pipeline)) or []
 
 class Cursor:
     def __init__(self, data):

@@ -204,9 +204,11 @@ If you did not make this request then simply ignore this email and no changes wi
 '''
             mail.send(msg)
 def get_idd(username):
-    return db.userdb.find_one({"username": username})['_id']
+    user = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
+    return user['_id'] if user else None
 def get_username(_id):
-    return db.userdb.find_one({"_id": _id})['username']
+    user = db.userdb.find_one({"_id": _id})
+    return user['username'] if user else "Unknown"
 class Messages:
     def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
         self.sender = sender
