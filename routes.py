@@ -68,7 +68,7 @@ def load_user(user_id):
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    posts = db.postdb.find().sort("timestamp", ASCENDING).limit(10)
+    posts = db.postdb.find().sort("timestamp", DESCENDING).limit(10)
     p2 = []
     for i in posts:
         i['content'] = markdown.markdown(i['content'])

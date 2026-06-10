@@ -136,7 +136,7 @@ class User(UserMixin):
         user_by_email = User.get_by_email(email)
         if user is None and user_by_email is None:
             new_user = User(username, email, password, invcode, last_seen=bruh.now())
-            new_user.save_to_mongo()
+            new_user.save_to_db()
             return True
         else:
             return False
@@ -171,7 +171,7 @@ class User(UserMixin):
     def add_following(self, id):
         self.following.append(id)
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.userdb.insert_one(self.json())
 
     def email(self):
@@ -252,7 +252,7 @@ class Messages:
     def send_message(cls, sender, receiver, message, media=None):
         timestamp = bruh.now()
         new_message = cls(sender=sender, receiver=receiver, timestamp=timestamp, message=message, media=media)
-        new_message.save_to_mongo()
+        new_message.save_to_db()
         return new_message.json()
 
     @classmethod
@@ -301,7 +301,7 @@ class Messages:
                 users.append(other)
         return users
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.messagesdb.insert_one({
             "sender": self.sender,
             "receiver": self.receiver,
@@ -412,7 +412,7 @@ class Post:
         if data is not None:
             return cls(**data)
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         self.content = markdown.markdown(self.content)
         db.postdb.insert_one(self.json())
 
@@ -444,19 +444,19 @@ class Comment:
             "liked_by": self.liked_by
         }
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.commentdb.insert_one(self.json())
 
     @classmethod
-    def create(cls, post_id, user_id, username, content, parent_comment_id=None):
+    def create(cls, post_id, user_id, content, parent_comment_id=None):
         new_comment = cls(
+            username=get_username(user_id),
             post_id=post_id,
             user_id=user_id,
-            username=username,
             content=content,
             parent_comment_id=parent_comment_id
         )
-        new_comment.save_to_mongo()
+        new_comment.save_to_db()
         return new_comment
 
     @classmethod
@@ -518,7 +518,7 @@ class Repository:
             "timestamp": self.timestamp
         }
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.reposdb.insert_one(self.json())
 
     @classmethod
@@ -542,4 +542,3 @@ class Repository:
     def find_by_owner(cls, owner):
         repos_data = db.reposdb.find({"owner": re.compile(f"^{re.escape(owner)}$", re.I)}).sort("timestamp", -1)
         return [cls(**data) for data in repos_data]
-

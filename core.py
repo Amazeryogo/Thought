@@ -10,6 +10,7 @@ with open("secretkey.txt","r") as f:
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
+app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024 # 512MB
 login = LoginManager(app)
 login.login_view = '/login'
 app.config['TESTING'] = False
