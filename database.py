@@ -26,16 +26,6 @@ class Collection:
         self.name = name
 
     def _send_cmd(self, cmd, **kwargs):
-        # Convert any regex objects to a serializable format
-        if 'query' in kwargs:
-            kwargs['query'] = self._serialize_query(kwargs['query'])
-        if 'pipeline' in kwargs:
-            kwargs['pipeline'] = self._serialize_pipeline(kwargs['pipeline'])
-        if 'doc' in kwargs:
-            kwargs['doc'] = self._serialize_doc(kwargs['doc'])
-        if 'update' in kwargs:
-            kwargs['update'] = self._serialize_doc(kwargs['update'])
-
         request = {'cmd': cmd, 'col': self.name, **kwargs}
 
         try:
@@ -52,6 +42,8 @@ class Collection:
                     if b"\n" in response_data:
                         break
 
+                if not response_data:
+                    return None
                 response = json.loads(response_data.decode('utf-8'))
                 return self._deserialize_response(response)
         except Exception as e:
@@ -105,7 +97,8 @@ class Collection:
         return self._send_cmd('insert_one', doc=self._serialize_doc(document))
 
     def update_one(self, query, update):
-        return self._send_cmd('update_one', query=self._serialize_query(query), update=self._serialize_doc(update)) > 0
+        res = self._send_cmd('update_one', query=self._serialize_query(query), update=self._serialize_doc(update))
+        return res > 0 if isinstance(res, (int, float)) else False
 
     def update_many(self, query, update):
         return self._send_cmd('update_many', query=self._serialize_query(query), update=self._serialize_doc(update))
