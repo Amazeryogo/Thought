@@ -187,7 +187,9 @@ class DBServer:
         with self.lock:
             if col_name not in self.data:
                 self.data[col_name] = []
-                self.indexes[col_name] = {'_id': {}}
+                self.id_maps[col_name] = {}
+                self.indexes[col_name] = {}
+                self._ensure_index(col_name, '_id')
 
             # Ensure all data in this collection is deserialized
             # (In-memory optimization: only do this if it's currently serialized strings)
@@ -308,11 +310,12 @@ class DBServer:
                 return doc
             return None
 
-        # Use other indexes if available
+        # Use other indexes if available (only for simple equality)
         if query:
             for field in self.indexes.get(col_name, {}):
-                if field in query and not isinstance(query[field], (dict, list)):
-                    ids = self.indexes[col_name][field].get(query[field], set())
+                val = query.get(field)
+                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search'):
+                    ids = self.indexes[col_name][field].get(val, set())
                     for _id in ids:
                         doc = self.id_maps[col_name].get(_id)
                         if doc and self._match(doc, query):
@@ -358,10 +361,11 @@ class DBServer:
             doc = self.id_maps[col_name].get(query['_id'])
             docs_to_check = [doc] if doc else []
         elif query:
-            # Try other indexes
+            # Try other indexes (equality only)
             for field in self.indexes.get(col_name, {}):
-                if field in query and not isinstance(query[field], (dict, list)):
-                    ids = self.indexes[col_name][field].get(query[field], set())
+                val = query.get(field)
+                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search'):
+                    ids = self.indexes[col_name][field].get(val, set())
                     docs_to_check = [self.id_maps[col_name][_id] for _id in ids if _id in self.id_maps[col_name]]
                     break
 

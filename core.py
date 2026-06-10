@@ -19,8 +19,8 @@ flask_bootstrap.Bootstrap(app)
 
 @app.context_processor
 def inject_globals():
-    from models import User
-    return dict(User=User)
+    from models import User, Group
+    return dict(User=User, Group=Group)
 
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.googlemail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))

@@ -9,11 +9,11 @@ import re
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None, **kwargs):
-        self.username = username
-        self.email = email
-        self.password = password
-        self.invcode = invcode
+    def __init__(self, username=None, email=None, password=None, invcode=None, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None, **kwargs):
+        self.username = username or kwargs.get('username')
+        self.email = email or kwargs.get('email')
+        self.password = password or kwargs.get('password')
+        self.invcode = invcode or kwargs.get('invcode')
         self._id = _id or uuid.uuid4().hex
         self.aboutme = aboutme or "New to Thought"
         self.git_token = git_token or uuid.uuid4().hex
@@ -224,11 +224,11 @@ def get_username(_id):
     return user['username'] if user else "Unknown"
 
 class Group:
-    def __init__(self, name, description, owner_id, members=None, mods=None, join_requests=None, timestamp=None, _id=None, **kwargs):
+    def __init__(self, name=None, description=None, owner_id=None, members=None, mods=None, join_requests=None, timestamp=None, _id=None, **kwargs):
         self._id = _id or uuid.uuid4().hex
-        self.name = name
-        self.description = description
-        self.owner_id = owner_id
+        self.name = name or kwargs.get('name')
+        self.description = description or kwargs.get('description')
+        self.owner_id = owner_id or kwargs.get('owner_id')
         self.members = members or [owner_id]
         self.mods = mods or []
         self.join_requests = join_requests or []
@@ -296,11 +296,11 @@ class Notification:
     def mark_all_read(cls, user_id):
         db.notificationsdb.update_many({"user_id": user_id, "read": False}, {"$set": {"read": True}})
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False, **kwargs):
-        self.sender = sender
-        self.receiver = receiver
-        self.timestamp = timestamp
-        self.message = message
+    def __init__(self, sender=None, receiver=None, timestamp=None, message=None, _id=None, reactions=None, media=None, read=False, **kwargs):
+        self.sender = sender or kwargs.get('sender')
+        self.receiver = receiver or kwargs.get('receiver')
+        self.timestamp = timestamp or kwargs.get('timestamp')
+        self.message = message or kwargs.get('message')
         self._id = uuid.uuid4().hex if _id is None else _id
         self.s_av = User.avatar(sender)
         self.reactions = reactions if reactions is not None else {}
@@ -412,10 +412,10 @@ class Messages:
 
 
 class Post:
-    def __init__(self, title, content, timestamp, user_id, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None, **kwargs):
-        self.title = title
-        self.content = content
-        self.user_id = user_id
+    def __init__(self, title=None, content=None, timestamp=None, user_id=None, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None, **kwargs):
+        self.title = title or kwargs.get('title')
+        self.content = content or kwargs.get('content')
+        self.user_id = user_id or kwargs.get('user_id')
         self.username = username or get_username(user_id)
         self.timestamp = timestamp
         self.likes = likes
@@ -519,10 +519,10 @@ class Post:
 
 
 class Comment:
-    def __init__(self, username, post_id, user_id, content, parent_comment_id=None, _id=None, timestamp=None,
+    def __init__(self, username=None, post_id=None, user_id=None, content=None, parent_comment_id=None, _id=None, timestamp=None,
                  likes=None, liked_by=None, **kwargs):
-        self.post_id = post_id
-        self.user_id = user_id
+        self.post_id = post_id or kwargs.get('post_id')
+        self.user_id = user_id or kwargs.get('user_id')
         self.username = get_username(user_id)
         self.content = content
         self.parent_comment_id = parent_comment_id
@@ -603,9 +603,9 @@ class Comment:
 
 
 class Repository:
-    def __init__(self, name, owner, description=None, _id=None, timestamp=None, **kwargs):
-        self.name = name
-        self.owner = owner
+    def __init__(self, name=None, owner=None, description=None, _id=None, timestamp=None, **kwargs):
+        self.name = name or kwargs.get('name')
+        self.owner = owner or kwargs.get('owner')
         self.description = description if description else "No description"
         self._id = uuid.uuid4().hex if _id is None else _id
         self.timestamp = bruh.now() if timestamp is None else timestamp

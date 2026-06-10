@@ -1261,13 +1261,19 @@ def react_to_message():
 
     return jsonify({"success": True, "reactions": reactions})
 
-@app.route('/avatar/<username>')
-def avatar(username):
-    uid = get_idd(username)
-    if not uid:
+@app.route('/avatar/<identifier>')
+def avatar(identifier):
+    # identifier could be ID or username
+    user = User.get_by_id(identifier) or User.get_by_username(identifier)
+
+    if not user:
+        # Check if the identifier is already an ID and try to find by username
+        user = User.get_by_username(identifier)
+
+    if not user:
         return send_from_directory('static', 'noavatar.jpeg')
 
-    static_dir = os.path.join(IMAGED,'users',uid)
+    static_dir = os.path.join(IMAGED,'users',user._id)
     k = 0
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
