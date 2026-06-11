@@ -45,7 +45,7 @@
                         {% endif %}
                     </h5>
 
-                    <p>{{ comment.content }}</p>
+                    <p>{{ comment.content | render_comment_content | safe }}</p>
 
                     <!-- Reply Form -->
                     <form method="POST" action="{{ url_for('reply_to_comment', comment_id=comment._id) }}" class="mt-2">
@@ -72,7 +72,7 @@
                                     </form>
                                     {% endif %}
                                 </h6>
-                                <p>{{ reply.content }}</p>
+                                <p>{{ reply.content | render_comment_content | safe }}</p>
                             </div>
                         </div>
                         {% endfor %}

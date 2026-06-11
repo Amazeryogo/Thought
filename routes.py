@@ -49,6 +49,13 @@ def format_timestamp(ts):
         return ts.strftime('%b %d, %Y - %H:%M')
     return str(ts)
 
+
+@app.template_filter('render_comment_content')
+def render_comment_content(content):
+    if not content: return ""
+    content = re.sub(r'@(\w+)', r'[@\1]( /\1)', content)
+    return markdown.markdown(content)
+
 @app.template_filter('render_post_content')
 def render_post_content(post):
     content = ""
@@ -64,7 +71,7 @@ def render_post_content(post):
         i = 0
         for media_url in media_files:
             placeholder = f"[image{i+1}]"
-            if media_url.lower().endswith(('.mp4', '.webm')):
+            if media_url.lower().endswith(('.mp4', '.webm', '.mkv')):
                 media_tag = f'<video src="{media_url}" class="img-fluid rounded mb-2" controls></video>'
             else:
                 media_tag = f'<img src="{media_url}" class="img-fluid rounded mb-2" alt="">'
@@ -79,6 +86,7 @@ def render_post_content(post):
     # Remove any remaining placeholders that don't have a corresponding image
     content = re.sub(r'\[image\d+\]', '', content)
 
+    content = re.sub(r'@(\w+)', r'[@\1]( /\1)', content)
     return markdown.markdown(content)
 
 @login.user_loader
@@ -101,14 +109,13 @@ def home():
     # If feed is too small, supplement with global posts
     p_list = list(posts)
     if len(p_list) < 5:
-        global_posts = db.postdb.find({"user_id": {"$nin": feed_users}}).sort("timestamp", DESCENDING).limit(10)
+        global_posts = db.postdb.find({"user_id": {"$nin": feed_users}, "visibility": "public", "is_draft": {"$ne": True}, "group_id": None}).sort("timestamp", DESCENDING).limit(10)
         p_list.extend(list(global_posts))
         # Re-sort combined list
         p_list.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
 
     p2 = []
     for i in p_list:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2)
 
@@ -157,7 +164,6 @@ def explore():
 
     p2 = []
     for i in posts:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('explore.html', posts=p2, trending=trending, suggested=suggested)
 
@@ -175,7 +181,6 @@ def search():
 
     p2 = []
     for i in posts:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
 
     return render_template('search.html', users=users, posts=p2, hashtags=hashtags, q=q)
@@ -186,7 +191,6 @@ def hashtag_view(name):
     posts = db.postdb.find({"content": {"$regex": f"#{name}"}}).sort("timestamp", DESCENDING)
     p2 = []
     for i in posts:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2, title=f"#{name}")
 
@@ -262,6 +266,7 @@ def post_view(post_id):
 
     if form.validate_on_submit():
         content = filter_profanity(form.content.data)
+
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             comment = Comment.create(
                 post_id=post_id,
@@ -273,6 +278,7 @@ def post_view(post_id):
 
             # Check for mentions
             mentions = re.findall(r'@(\w+)', content)
+            content = re.sub(r'@(\w+)', r'[@\1]( /\1)', content)
             for m in set(mentions):
                 target_user = User.get_by_username(m)
                 if target_user:
@@ -322,6 +328,8 @@ def reply_to_comment(comment_id):
     content = request.form.get("reply_content")
     if content:
         content = filter_profanity(content)
+
+
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
             comment = Comment.create(
                 post_id=parent_comment.post_id,
@@ -334,6 +342,7 @@ def reply_to_comment(comment_id):
 
             # Check for mentions
             mentions = re.findall(r'@(\w+)', content)
+            content = re.sub(r'@(\w+)', r'[@\1]( /\1)', content)
             for m in set(mentions):
                 target_user = User.get_by_username(m)
                 if target_user:
@@ -363,7 +372,7 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "gif", "mp4", "webm")
+ALLOWED_EXTENSIONS = ("png", "jpg", "jpeg", "gif", "mp4", "webm", "mkv")
 
 
 def allowed_file(filename):
@@ -498,7 +507,6 @@ def user(username):
     posts = db.postdb.find(query).sort("timestamp", DESCENDING).limit(10)
     p2 = []
     for post in posts:
-        post['content'] = markdown.markdown(post['content'])
         p2.append(post)
     image_dir = os.path.join(IMAGED,'users', user._id, 'images')
     user_images = []
@@ -613,6 +621,7 @@ def createnewpost():
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
         content = filter_profanity(content)
 
+
         if len(content) in range(POST_MIN, POST_MAX+1):
             visibility = form.visibility.data
             is_draft = form.is_draft.data
@@ -657,6 +666,7 @@ def createnewpost():
 
             # Check for mentions
             mentions = re.findall(r'@(\w+)', content)
+            content = re.sub(r'@(\w+)', r'[@\1]( /\1)', content)
             for m in set(mentions):
                 target_user = User.get_by_username(m)
                 if target_user:
@@ -752,7 +762,6 @@ def bookmarks():
 
     p2 = []
     for i in posts:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
     return render_template('home.html', posts=p2, title="My Bookmarks")
 
@@ -871,7 +880,6 @@ def group_view(group_id):
 
     p2 = []
     for i in posts:
-        i['content'] = markdown.markdown(i['content'])
         p2.append(i)
 
     return render_template('groups/view.html',
@@ -1266,39 +1274,27 @@ def react_to_message():
 
 @app.route('/avatar/<identifier>')
 def avatar(identifier):
-    # identifier could be ID or username
     user = User.get_by_id(identifier) or User.get_by_username(identifier)
-
-    if not user:
-        # Check if the identifier is already an ID and try to find by username
-        user = User.get_by_username(identifier)
-
-    if not user:
-        return send_from_directory('static', 'noavatar.jpeg')
-
-    static_dir = os.path.join(IMAGED,'users',user._id)
-    k = 0
-    for ext in ['jpg', 'jpeg', 'png', 'gif']:
+    if not user: user = User.get_by_username(identifier)
+    if not user: return send_from_directory('static', 'noavatar.jpeg')
+    static_dir = os.path.join(IMAGED, "users", user._id)
+    for ext in ["jpg", "jpeg", "png", "gif"]:
         path = os.path.join(static_dir, f"pfp.{ext}")
         if os.path.isfile(path):
             return send_from_directory(static_dir, f"pfp.{ext}")
-            k = 1
-        else:
-            k = 0
-    if k == 0:
-        email = User.get_email(user.get_id())
-        if email:
-            digest = md5(email.lower().encode('utf-8')).hexdigest()
-            url = f'https://www.gravatar.com/avatar/{digest}?d=identicon&s=128'
-            os.makedirs(static_dir, exist_ok=True)
-            try:
-                with urllib.request.urlopen(url) as response:
-                    image_data = response.read()
-                    with open(path, "wb") as avatar_file:
-                        avatar_file.write(image_data)
-                    return send_from_directory(static_dir, f"pfp.{ext}")
+    email = user.email
+    if email:
+        digest = md5(email.lower().encode("utf-8")).hexdigest()
+        url = f"https://www.gravatar.com/avatar/{digest}?d=identicon&s=128"
+        os.makedirs(static_dir, exist_ok=True)
+        try:
+            with urllib.request.urlopen(url) as response:
+                image_data = response.read()
+                with open(os.path.join(static_dir, "pfp.png"), "wb") as f:
+                    f.write(image_data)
+            return send_from_directory(static_dir, "pfp.png")
+        except: pass
     return send_from_directory('static', 'noavatar.jpeg')
-
 
 app.jinja_env.globals.update(get_username2=get_username)
 
@@ -1974,6 +1970,7 @@ def edit_post(post_id):
 
     if form.validate_on_submit():
         content = filter_profanity(form.content.data)
+
         if len(content) in range(POST_MIN,POST_MAX+1):
             # Save current state to edit history before updating
             db.postdb.update_one(
