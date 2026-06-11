@@ -663,11 +663,9 @@ def createnewpost():
                     Notification.create(target_user._id, 'mention', current_user._id, post_id=new_post._id)
             flash('Your post has been created!', 'success')
             return redirect('/me')
-        else:
-            if len(content) > POST_MAX:
-                flash('exceeds the maximum word limit by '+str(-(POST_MAX - len(content)))+', sorry', 'danger')
-            else:
-                flash('post content is too less','warning')
+    elif request.method == 'POST':
+        print(form.errors)
+        flash(f"Form validation errors: {form.errors}", "danger")
     return render_template('forms/edit_post.html', form=form, p=p)
 
 
@@ -1288,18 +1286,20 @@ def avatar(identifier):
         else:
             k = 0
     if k == 0:
-        j = User.get_email(get_idd(username))
-        if j:
-            digest = md5(j.lower().encode('utf-8')).hexdigest()
-            url = 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
-                digest, 128)
+        email = User.get_email(user._id)
+        if email:
+            digest = md5(email.lower().encode('utf-8')).hexdigest()
+            url = f'https://www.gravatar.com/avatar/{digest}?d=identicon&s=128'
             os.makedirs(static_dir, exist_ok=True)
-            with urllib.request.urlopen(url) as response:
-                image_data = response.read()
-                with open(path, "wb") as file:
-                    file.write(image_data)
-            return send_from_directory(static_dir, f"pfp.{ext}")
-    return None
+            try:
+                with urllib.request.urlopen(url) as response:
+                    image_data = response.read()
+                    with open(path, "wb") as file:
+                        file.write(image_data)
+                return send_from_directory(static_dir, f"pfp.{ext}")
+            except:
+                pass
+    return send_from_directory('static', 'noavatar.jpeg')
 
 
 app.jinja_env.globals.update(get_username2=get_username)
@@ -1343,11 +1343,16 @@ def toggle_follow(username):
     updated_user_data = db.userdb.find_one({"_id": v})
     follower_count = len(updated_user_data.get("followers", []))
 
+    # Also get current user's following count
+    current_user_data = db.userdb.find_one({"_id": current_user._id})
+    following_count = len(current_user_data.get("following", []))
+
     return jsonify({
         "success": True,
         "action": action,
         "is_following": current_user._id in updated_user_data.get("followers", []),
-        "follower_count": follower_count
+        "follower_count": follower_count,
+        "following_count": following_count
     })
 
 @app.route("/followers/<username>")
@@ -1992,9 +1997,7 @@ def edit_post(post_id):
             )
             flash("Post updated successfully!", "success")
             return redirect(url_for('post_view', post_id=post_id))
-        else:
-            if len(form.content.data) > POST_MAX:
-                flash("Post content too long", "warning")
-            else:
-                flash("Post content too short", "danger")
+    elif request.method == 'POST':
+        print(form.errors)
+        flash(f"Form validation errors: {form.errors}", "danger")
     return render_template("forms/edit_post.html", form=form, p=p)

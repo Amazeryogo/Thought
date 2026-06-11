@@ -10,10 +10,10 @@
         <div class="col-md-10 col-lg-8 col-xl-6">
             <div class="card rounded-4 shadow-sm">
                 <div class="card-body p-4 d-flex">
-                    <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid rounded-circle me-4" style="width: 100px; height: 100px; object-fit: cover;">
+                    <img src="{{ avatar }}" alt="Profile Photo" class="img-fluid rounded-circle mr-4" style="width: 100px; height: 100px; object-fit: cover;">
                     <div class="flex-grow-1">
                         <p class="text-muted small">{{ user.last_live() }}</p>
-                        <p class="mb-3">{{ user.aboutme }}</p>
+                        <p class="mb-3">{{ aboutme }}</p>
                         <p class="mb-1">
                             <strong>Followers:</strong>
                             <span id="followerCount"
@@ -26,7 +26,8 @@
                         </p>
                         <p class="mb-3">
                             <strong>Following:</strong>
-                            <span data-username="{{ user.username }}"
+                            <span id="followingCount"
+                                  data-username="{{ user.username }}"
                                   data-type="following"
                                   class="hover-follow text-primary"
                                   style="cursor: pointer;">
@@ -108,7 +109,9 @@
     <div class="modal-content rounded-4">
       <div class="modal-header">
         <h5 class="modal-title" id="followModalLabel">Follow List</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-body" id="followList">
         <p class="text-muted">Loading...</p>
@@ -174,7 +177,7 @@
                     </video>
                 </div>
                 {% if user.username == current_user.username %}
-                <form action="{{ url_for('delete_image', image_name=vid) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                <form action="{{ url_for('delete_image', image_name=vid) }}" method="POST" class="position-absolute bottom-0 right-0 m-2" style="z-index: 3;">
                     <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this video?')">
                         <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                     </button>
@@ -195,7 +198,7 @@
                          class="media-content" alt="Upload">
                 </div>
                 {% if user.username == current_user.username %}
-                <form action="{{ url_for('delete_image', image_name=img) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                <form action="{{ url_for('delete_image', image_name=img) }}" method="POST" class="position-absolute bottom-0 right-0 m-2" style="z-index: 3;">
                     <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this image?')">
                         <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                     </button>
@@ -212,7 +215,9 @@
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content bg-dark border-0">
             <div class="modal-header border-0 pb-0">
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             <div class="modal-body p-0 d-flex justify-content-center align-items-center" id="galleryModalBody" style="min-height: 300px;">
                 <!-- Content injected via JS -->
