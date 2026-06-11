@@ -229,9 +229,11 @@ class Group:
         self.name = name or kwargs.get('name')
         self.description = description or kwargs.get('description')
         self.owner_id = owner_id or kwargs.get('owner_id')
-        self.members = members or kwargs.get('members') or ([self.owner_id] if self.owner_id else [])
-        self.mods = mods or kwargs.get('mods') or []
-        self.join_requests = join_requests or kwargs.get('join_requests') or []
+        self.members = members if members is not None else kwargs.get('members')
+        if self.members is None:
+            self.members = [self.owner_id] if self.owner_id else []
+        self.mods = mods if mods is not None else kwargs.get('mods') or []
+        self.join_requests = join_requests if join_requests is not None else kwargs.get('join_requests') or []
         self.timestamp = timestamp or kwargs.get('timestamp') or bruh.now()
 
     def json(self):
@@ -462,7 +464,7 @@ class Post:
     @classmethod
     def liked(cls, _id, userx):
         data = db.postdb.find_one({"_id": _id})
-        if not data or userx == data['username']:
+        if not data or userx == data.get('user_id'):
             return
         liked_by = set(data.get("liked_by", []))
         disliked_by = set(data.get("disliked_by", []))
@@ -486,7 +488,7 @@ class Post:
     @classmethod
     def disliked(cls, _id, userx):
         data = db.postdb.find_one({"_id": _id})
-        if not data or userx == data['username']:
+        if not data or userx == data.get('user_id'):
             return
         liked_by = set(data.get("liked_by", []))
         disliked_by = set(data.get("disliked_by", []))

@@ -23,7 +23,11 @@
         <h6 class="mb-3">Poll</h6>
         {% for opt in post.poll.options %}
             {% set voters = opt.get('voters', []) %}
-            {% set total_voters = post.poll.options|sum(attribute='voters'|length) %}
+            {% set total_voters = post.poll.voters_count if post.poll.voters_count is defined else 0 %}
+            {% if total_voters == 0 %}
+                {% set total_voters = 0 %}
+                {% for o in post.poll.options %}{% set total_voters = total_voters + (o.get('voters', [])|length) %}{% endfor %}
+            {% endif %}
             <div class="mb-2">
                 <button class="btn btn-outline-primary btn-block text-left poll-option {% if current_user._id in voters %}active{% endif %}"
                         data-post-id="{{ post._id }}"
@@ -36,7 +40,11 @@
                 </button>
             </div>
         {% endfor %}
-        <small class="text-muted">{{ post.poll.options|sum(attribute='voters'|length) }} votes</small>
+        <small class="text-muted">
+            {% set display_total = 0 %}
+            {% for o in post.poll.options %}{% set display_total = display_total + (o.get('voters', [])|length) %}{% endfor %}
+            {{ display_total }} votes
+        </small>
     </div>
     {% endif %}
 

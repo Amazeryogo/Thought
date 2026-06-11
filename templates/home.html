@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+    {% if not title %}
     <!-- make a welcome section -->
     <div class="card">
   <div class="card-body">
@@ -12,6 +13,11 @@
   </div>
 </div>
 </div>
+    {% else %}
+    <div class="text-center mb-4">
+        <h2 style="font-family: 'Abril Fatface', cursive;">{{ title }}</h2>
+    </div>
+    {% endif %}
     {% for post in posts %}
     {% include '_post.html' %}
     {% endfor %}

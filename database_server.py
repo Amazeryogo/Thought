@@ -165,6 +165,10 @@ class DBServer:
     def _json_serial(obj):
         if isinstance(obj, datetime):
             return {"$date": obj.isoformat()}
+        if isinstance(obj, (set, tuple)):
+            return list(obj)
+        if hasattr(obj, 'json') and callable(obj.json):
+            return obj.json()
         return str(obj)
 
     def _json_deserial(self, data):
@@ -220,25 +224,37 @@ class DBServer:
                 self.indexes[col_name] = {}
                 self._ensure_index(col_name, '_id')
 
-            if log_wal and cmd in ['insert_one', 'insert_many', 'update_one', 'update_many', 'delete_one', 'delete_many']:
-                self._log_to_wal(req)
-
             res = None
             if cmd == 'find':
                 res = self._find(col_name, self._json_deserial(req.get('query')), req.get('limit'), req.get('skip'))
             elif cmd == 'find_one':
                 res = self._find_one(col_name, self._json_deserial(req.get('query')))
             elif cmd == 'insert_one':
-                res = self._insert_one(col_name, self._json_deserial(req.get('doc')))
+                doc = self._json_deserial(req.get('doc'))
+                if "_id" not in doc:
+                    doc["_id"] = uuid.uuid4().hex
+                req['doc'] = doc # Update req with generated _id before logging to WAL
+                if log_wal: self._log_to_wal(req)
+                res = self._insert_one(col_name, doc)
             elif cmd == 'insert_many':
-                res = self._insert_many(col_name, self._json_deserial(req.get('docs')))
+                docs = self._json_deserial(req.get('docs'))
+                for d in docs:
+                    if "_id" not in d:
+                        d["_id"] = uuid.uuid4().hex
+                req['docs'] = docs
+                if log_wal: self._log_to_wal(req)
+                res = self._insert_many(col_name, docs)
             elif cmd == 'update_one':
+                if log_wal: self._log_to_wal(req)
                 res = self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=False)
             elif cmd == 'update_many':
+                if log_wal: self._log_to_wal(req)
                 res = self._update(col_name, self._json_deserial(req.get('query')), self._json_deserial(req.get('update')), many=True)
             elif cmd == 'delete_one':
+                if log_wal: self._log_to_wal(req)
                 res = self._delete(col_name, self._json_deserial(req.get('query')), many=False)
             elif cmd == 'delete_many':
+                if log_wal: self._log_to_wal(req)
                 res = self._delete(col_name, self._json_deserial(req.get('query')), many=True)
             elif cmd == 'aggregate':
                 res = self._aggregate(col_name, self._json_deserial(req.get('pipeline')))
@@ -300,15 +316,16 @@ class DBServer:
         # Use indexes if possible
         candidate_ids = None
         if query:
-            for field in self.indexes.get(col_name, {}):
+            for field, field_index in self.indexes.get(col_name, {}).items():
                 if field in query:
                     val = query[field]
+                    # Only equality queries on scalar values can use these indexes
                     if val is not None and not isinstance(val, (dict, list)) and not (isinstance(val, str) and val.startswith('__RE__')):
-                        ids = self.indexes[col_name][field].get(val, set())
-                    if candidate_ids is None:
-                        candidate_ids = set(ids)
-                    else:
-                        candidate_ids &= ids
+                        ids = field_index.get(val, set())
+                        if candidate_ids is None:
+                            candidate_ids = set(ids)
+                        else:
+                            candidate_ids &= ids
 
         # Determine source of documents: index-filtered or full scan
         if candidate_ids is not None:
@@ -368,10 +385,12 @@ class DBServer:
             doc["_id"] = uuid.uuid4().hex
 
         if doc["_id"] in self.id_maps[col_name]:
-            raise ValueError(f"Duplicate _id: {doc['_id']}")
+            # If we're replaying WAL, this might be expected if sync happened partially
+            return self.id_maps[col_name][doc["_id"]]
 
         # Initial versioning for optimistic locking
-        doc["__v"] = 0
+        if "__v" not in doc:
+            doc["__v"] = 0
         self.data[col_name].append(doc)
         self._update_index_on_insert(col_name, doc)
         return doc

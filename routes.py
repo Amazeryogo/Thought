@@ -1286,7 +1286,7 @@ def avatar(identifier):
         else:
             k = 0
     if k == 0:
-        email = User.get_email(user._id)
+        email = User.get_email(user.get_id())
         if email:
             digest = md5(email.lower().encode('utf-8')).hexdigest()
             url = f'https://www.gravatar.com/avatar/{digest}?d=identicon&s=128'
@@ -1294,11 +1294,9 @@ def avatar(identifier):
             try:
                 with urllib.request.urlopen(url) as response:
                     image_data = response.read()
-                    with open(path, "wb") as file:
-                        file.write(image_data)
-                return send_from_directory(static_dir, f"pfp.{ext}")
-            except:
-                pass
+                    with open(path, "wb") as avatar_file:
+                        avatar_file.write(image_data)
+                    return send_from_directory(static_dir, f"pfp.{ext}")
     return send_from_directory('static', 'noavatar.jpeg')
 
 
