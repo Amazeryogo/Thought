@@ -51,7 +51,8 @@ class DBServer:
                     with open(file_path, 'r') as f:
                         content = f.read()
                         if content:
-                            self.data[col_name] = json.loads(content)
+                            raw_data = json.loads(content)
+                            self.data[col_name] = [self._json_deserial(d) for d in raw_data]
                         else:
                             self.data[col_name] = []
                 except Exception as e:
@@ -276,9 +277,10 @@ class DBServer:
         candidate_ids = None
         if query:
             for field in self.indexes.get(col_name, {}):
-                if field in query and not isinstance(query[field], (dict, list)):
+                if field in query:
                     val = query[field]
-                    ids = self.indexes[col_name][field].get(val, set())
+                    if val is not None and not isinstance(val, (dict, list)) and not (isinstance(val, str) and val.startswith('__RE__')):
+                        ids = self.indexes[col_name][field].get(val, set())
                     if candidate_ids is None:
                         candidate_ids = set(ids)
                     else:
@@ -314,7 +316,7 @@ class DBServer:
         if query:
             for field in self.indexes.get(col_name, {}):
                 val = query.get(field)
-                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search'):
+                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search') and not (isinstance(val, str) and val.startswith('__RE__')):
                     ids = self.indexes[col_name][field].get(val, set())
                     for _id in ids:
                         doc = self.id_maps[col_name].get(_id)
@@ -364,7 +366,7 @@ class DBServer:
             # Try other indexes (equality only)
             for field in self.indexes.get(col_name, {}):
                 val = query.get(field)
-                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search'):
+                if val is not None and not isinstance(val, (dict, list)) and not hasattr(val, 'search') and not (isinstance(val, str) and val.startswith('__RE__')):
                     ids = self.indexes[col_name][field].get(val, set())
                     docs_to_check = [self.id_maps[col_name][_id] for _id in ids if _id in self.id_maps[col_name]]
                     break

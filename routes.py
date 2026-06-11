@@ -96,7 +96,7 @@ def home():
     blocked = current_user.json().get('blocked_users', [])
     feed_users = [f for f in following if f not in blocked] + [current_user._id]
 
-    posts = db.postdb.find({"user_id": {"$in": feed_users}, "is_draft": {"$ne": True}}).sort("timestamp", DESCENDING).limit(20)
+    posts = db.postdb.find({"user_id": {"$in": feed_users}, "is_draft": {"$ne": True}, "group_id": None}).sort("timestamp", DESCENDING).limit(20)
 
     # If feed is too small, supplement with global posts
     p_list = list(posts)
@@ -115,9 +115,13 @@ def home():
 @app.route('/explore')
 @login_required
 def explore():
-    # Global feed (excluding drafts and blocked users)
+    # Global feed (excluding drafts, blocked users, and community posts)
     blocked = current_user.json().get('blocked_users', [])
-    posts = db.postdb.find({"is_draft": {"$ne": True}, "user_id": {"$nin": blocked}}).sort("timestamp", DESCENDING).limit(20)
+    posts = db.postdb.find({
+        "is_draft": {"$ne": True},
+        "user_id": {"$nin": blocked},
+        "group_id": None
+    }).sort("timestamp", DESCENDING).limit(20)
 
     # Simple decay: score = count / (hours_since_last_post + 1)^1.5
     all_hashtags = db.hashtagsdb.find()
@@ -489,6 +493,7 @@ def user(username):
         if is_following:
             visible_levels.append('followers')
         query['visibility'] = {"$in": visible_levels}
+        query['group_id'] = None # Don't show community posts on public profile
 
     posts = db.postdb.find(query).sort("timestamp", DESCENDING).limit(10)
     p2 = []

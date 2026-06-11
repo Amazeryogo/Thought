@@ -225,14 +225,14 @@ def get_username(_id):
 
 class Group:
     def __init__(self, name=None, description=None, owner_id=None, members=None, mods=None, join_requests=None, timestamp=None, _id=None, **kwargs):
-        self._id = _id or uuid.uuid4().hex
+        self._id = _id or kwargs.get('_id') or uuid.uuid4().hex
         self.name = name or kwargs.get('name')
         self.description = description or kwargs.get('description')
         self.owner_id = owner_id or kwargs.get('owner_id')
-        self.members = members or [owner_id]
-        self.mods = mods or []
-        self.join_requests = join_requests or []
-        self.timestamp = timestamp or bruh.now()
+        self.members = members or kwargs.get('members') or ([self.owner_id] if self.owner_id else [])
+        self.mods = mods or kwargs.get('mods') or []
+        self.join_requests = join_requests or kwargs.get('join_requests') or []
+        self.timestamp = timestamp or kwargs.get('timestamp') or bruh.now()
 
     def json(self):
         return {
