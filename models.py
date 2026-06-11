@@ -9,27 +9,31 @@ import re
 from datetime import datetime as bruh
 
 class User(UserMixin):
-    def __init__(self, username, email, password, invcode, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None):
-        if aboutme is None:
-            aboutme = "New to Thought"
-            self.aboutme = aboutme
-        else:
-            self.aboutme = aboutme
-
-        self.username = username
-        self.email = email
-        self.password = password
-        self.invcode = invcode
-        self._id = uuid.uuid4().hex if _id is None else _id
-        self.git_token = git_token if git_token is not None else uuid.uuid4().hex
-        self.posts = db.postdb.find({"user_id": self._id})
+    def __init__(self, username=None, email=None, password=None, invcode=None, _id=None, aboutme=None, followers=None, following=None, last_seen=None, git_token=None, **kwargs):
+        self.username = username or kwargs.get('username')
+        self.email = email or kwargs.get('email')
+        self.password = password or kwargs.get('password')
+        self.invcode = invcode or kwargs.get('invcode')
+        self._id = _id or uuid.uuid4().hex
+        self.aboutme = aboutme or "New to Thought"
+        self.git_token = git_token or uuid.uuid4().hex
         self.last_seen = last_seen
-        try:
-            self.followers = db.userdb.find_one({"_id": self._id}).get("following", [])
-            self.following = db.userdb.find_one({"_id": self._id}).get("following", [])
-        except:
-            self.followers = []
-            self.following = []
+
+        # Load from DB to ensure arrays are present, or use kwargs
+        self.followers = followers or kwargs.get('followers') or []
+        self.following = following or kwargs.get('following') or []
+        self.follow_requests = kwargs.get('follow_requests', [])
+        self.blocked_users = kwargs.get('blocked_users', [])
+        self.is_private = kwargs.get('is_private', False)
+        self.is_admin = kwargs.get('is_admin', False)
+        self.is_banned = kwargs.get('is_banned', False)
+        self.last_data_export = kwargs.get('last_data_export')
+        self.bookmarks = kwargs.get('bookmarks', [])
+
+        # Store other extra kwargs
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                setattr(self, k, v)
     def is_authenticated(self):
         return True
 
@@ -42,9 +46,11 @@ class User(UserMixin):
     def get_id(self):
         return self._id
     def get_followers(self):
-        return db.userdb.find_one({"_id": self._id}).get("followers", [])
+        user_data = db.userdb.find_one({"_id": self._id})
+        return user_data.get("followers", []) if user_data else []
     def get_following(self):
-        return db.userdb.find_one({"_id": self._id}).get("following", [])
+        user_data = db.userdb.find_one({"_id": self._id})
+        return user_data.get("following", []) if user_data else []
     @classmethod
     def get_by_username(cls, username):
         data = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
@@ -136,7 +142,7 @@ class User(UserMixin):
         user_by_email = User.get_by_email(email)
         if user is None and user_by_email is None:
             new_user = User(username, email, password, invcode, last_seen=bruh.now())
-            new_user.save_to_mongo()
+            new_user.save_to_db()
             return True
         else:
             return False
@@ -151,8 +157,15 @@ class User(UserMixin):
             "password": self.password,
             "followers": self.followers,
             "following": self.following,
+            "follow_requests": self.follow_requests,
+            "blocked_users": self.blocked_users,
+            "is_private": self.is_private,
+            "is_admin": self.is_admin,
+            "is_banned": self.is_banned,
             "last_seen": self.last_seen,
-            "git_token": self.git_token
+            "git_token": self.git_token,
+            "last_data_export": self.last_data_export,
+            "bookmarks": self.bookmarks
         }
 
     @classmethod
@@ -171,7 +184,7 @@ class User(UserMixin):
     def add_following(self, id):
         self.following.append(id)
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.userdb.insert_one(self.json())
 
     def email(self):
@@ -204,15 +217,90 @@ If you did not make this request then simply ignore this email and no changes wi
 '''
             mail.send(msg)
 def get_idd(username):
-    return db.userdb.find_one({"username": username})['_id']
+    user = db.userdb.find_one({"username": re.compile(f"^{re.escape(username)}$", re.I)})
+    return user['_id'] if user else None
 def get_username(_id):
-    return db.userdb.find_one({"_id": _id})['username']
+    user = db.userdb.find_one({"_id": _id})
+    return user['username'] if user else "Unknown"
+
+class Group:
+    def __init__(self, name=None, description=None, owner_id=None, members=None, mods=None, join_requests=None, timestamp=None, _id=None, **kwargs):
+        self._id = _id or kwargs.get('_id') or uuid.uuid4().hex
+        self.name = name or kwargs.get('name')
+        self.description = description or kwargs.get('description')
+        self.owner_id = owner_id or kwargs.get('owner_id')
+        self.members = members or kwargs.get('members') or ([self.owner_id] if self.owner_id else [])
+        self.mods = mods or kwargs.get('mods') or []
+        self.join_requests = join_requests or kwargs.get('join_requests') or []
+        self.timestamp = timestamp or kwargs.get('timestamp') or bruh.now()
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "name": self.name,
+            "description": self.description,
+            "owner_id": self.owner_id,
+            "members": self.members,
+            "mods": self.mods,
+            "join_requests": self.join_requests,
+            "timestamp": self.timestamp
+        }
+
+    def save_to_db(self):
+        db.groupsdb.insert_one(self.json())
+
+    @classmethod
+    def get_by_id(cls, _id):
+        data = db.groupsdb.find_one({"_id": _id})
+        return cls(**data) if data else None
+
+class Notification:
+    def __init__(self, user_id, type, sender_id, post_id=None, comment_id=None, timestamp=None, read=False, _id=None, **kwargs):
+        self._id = uuid.uuid4().hex if _id is None else _id
+        self.user_id = user_id
+        self.type = type # 'like', 'comment', 'follow', 'mention'
+        self.sender_id = sender_id
+        self.post_id = post_id
+        self.comment_id = comment_id
+        self.timestamp = bruh.now() if timestamp is None else timestamp
+        self.read = read
+
+    def json(self):
+        return {
+            "_id": self._id,
+            "user_id": self.user_id,
+            "type": self.type,
+            "sender_id": self.sender_id,
+            "post_id": self.post_id,
+            "comment_id": self.comment_id,
+            "timestamp": self.timestamp,
+            "read": self.read
+        }
+
+    def save_to_db(self):
+        db.notificationsdb.insert_one(self.json())
+
+    @classmethod
+    def create(cls, user_id, type, sender_id, post_id=None, comment_id=None):
+        if user_id == sender_id: return # Don't notify self
+        notif = cls(user_id, type, sender_id, post_id, comment_id)
+        notif.save_to_db()
+        return notif
+
+    @classmethod
+    def find_by_user(cls, user_id, limit=20):
+        data = db.notificationsdb.find({"user_id": user_id}).sort("timestamp", -1).limit(limit)
+        return [cls(**d) for d in data]
+
+    @classmethod
+    def mark_all_read(cls, user_id):
+        db.notificationsdb.update_many({"user_id": user_id, "read": False}, {"$set": {"read": True}})
 class Messages:
-    def __init__(self, sender, receiver, timestamp, message, _id=None, reactions=None, media=None, read=False):
-        self.sender = sender
-        self.receiver = receiver
-        self.timestamp = timestamp
-        self.message = message
+    def __init__(self, sender=None, receiver=None, timestamp=None, message=None, _id=None, reactions=None, media=None, read=False, **kwargs):
+        self.sender = sender or kwargs.get('sender')
+        self.receiver = receiver or kwargs.get('receiver')
+        self.timestamp = timestamp or kwargs.get('timestamp')
+        self.message = message or kwargs.get('message')
         self._id = uuid.uuid4().hex if _id is None else _id
         self.s_av = User.avatar(sender)
         self.reactions = reactions if reactions is not None else {}
@@ -252,7 +340,7 @@ class Messages:
     def send_message(cls, sender, receiver, message, media=None):
         timestamp = bruh.now()
         new_message = cls(sender=sender, receiver=receiver, timestamp=timestamp, message=message, media=media)
-        new_message.save_to_mongo()
+        new_message.save_to_db()
         return new_message.json()
 
     @classmethod
@@ -301,7 +389,7 @@ class Messages:
                 users.append(other)
         return users
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.messagesdb.insert_one({
             "sender": self.sender,
             "receiver": self.receiver,
@@ -324,18 +412,25 @@ class Messages:
 
 
 class Post:
-    def __init__(self, title, content, timestamp, user_id, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None):
-        self.title = title
-        self.content = content
-        self.user_id = user_id
-        self.username = get_username(user_id)
+    def __init__(self, title=None, content=None, timestamp=None, user_id=None, username=None, _id=None,likes=0,dislikes=0,liked_by=None,disliked_by=None,images=None, **kwargs):
+        self.title = title or kwargs.get('title')
+        self.content = content or kwargs.get('content')
+        self.user_id = user_id or kwargs.get('user_id')
+        self.username = username or get_username(user_id)
         self.timestamp = timestamp
         self.likes = likes
         self.liked_by = liked_by if liked_by is not None else []
         self.dislikes = dislikes
         self.disliked_by = disliked_by if disliked_by is not None else []
-        self._id = uuid.uuid4().hex if _id is None else _id
+        self._id = _id or uuid.uuid4().hex
         self.images = images if images is not None else []
+
+        self.visibility = kwargs.get('visibility', 'public')
+        self.poll = kwargs.get('poll')
+        self.is_draft = kwargs.get('is_draft', False)
+        self.edit_history = kwargs.get('edit_history', [])
+        self.reactions = kwargs.get('reactions', {})
+        self.views = kwargs.get('views', 0)
 
     def json(self):
         return {
@@ -349,7 +444,13 @@ class Post:
             "dislikes": self.dislikes,
             "liked_by": self.liked_by,
             "disliked_by": self.disliked_by,
-            "images": self.images
+            "images": self.images,
+            "visibility": self.visibility,
+            "poll": self.poll,
+            "is_draft": self.is_draft,
+            "edit_history": self.edit_history,
+            "reactions": self.reactions,
+            "views": self.views
         }
 
     @classmethod
@@ -412,16 +513,16 @@ class Post:
         if data is not None:
             return cls(**data)
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         self.content = markdown.markdown(self.content)
         db.postdb.insert_one(self.json())
 
 
 class Comment:
-    def __init__(self, username, post_id, user_id, content, parent_comment_id=None, _id=None, timestamp=None,
-                 likes=None, liked_by=None):
-        self.post_id = post_id
-        self.user_id = user_id
+    def __init__(self, username=None, post_id=None, user_id=None, content=None, parent_comment_id=None, _id=None, timestamp=None,
+                 likes=None, liked_by=None, **kwargs):
+        self.post_id = post_id or kwargs.get('post_id')
+        self.user_id = user_id or kwargs.get('user_id')
         self.username = get_username(user_id)
         self.content = content
         self.parent_comment_id = parent_comment_id
@@ -444,19 +545,19 @@ class Comment:
             "liked_by": self.liked_by
         }
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.commentdb.insert_one(self.json())
 
     @classmethod
-    def create(cls, post_id, user_id, username, content, parent_comment_id=None):
+    def create(cls, post_id, user_id, content, parent_comment_id=None):
         new_comment = cls(
+            username=get_username(user_id),
             post_id=post_id,
             user_id=user_id,
-            username=username,
             content=content,
             parent_comment_id=parent_comment_id
         )
-        new_comment.save_to_mongo()
+        new_comment.save_to_db()
         return new_comment
 
     @classmethod
@@ -502,9 +603,9 @@ class Comment:
 
 
 class Repository:
-    def __init__(self, name, owner, description=None, _id=None, timestamp=None):
-        self.name = name
-        self.owner = owner
+    def __init__(self, name=None, owner=None, description=None, _id=None, timestamp=None, **kwargs):
+        self.name = name or kwargs.get('name')
+        self.owner = owner or kwargs.get('owner')
         self.description = description if description else "No description"
         self._id = uuid.uuid4().hex if _id is None else _id
         self.timestamp = bruh.now() if timestamp is None else timestamp
@@ -518,7 +619,7 @@ class Repository:
             "timestamp": self.timestamp
         }
 
-    def save_to_mongo(self):
+    def save_to_db(self):
         db.reposdb.insert_one(self.json())
 
     @classmethod
@@ -542,4 +643,3 @@ class Repository:
     def find_by_owner(cls, owner):
         repos_data = db.reposdb.find({"owner": re.compile(f"^{re.escape(owner)}$", re.I)}).sort("timestamp", -1)
         return [cls(**data) for data in repos_data]
-

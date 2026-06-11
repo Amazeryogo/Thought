@@ -4,4 +4,5 @@ __pycache__/
 IMAGES/
 secretkey.txt
 IMAGES/users/
-repos
+repos/
+DB/

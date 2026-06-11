@@ -2,26 +2,25 @@ import os
 import flask_bootstrap
 from flask import *
 from flask_login import *
-from flask_pymongo import *
 from flask_mail import Mail
+from database import Database, ASCENDING, DESCENDING
 
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
-app.config["MONGO_URI"] = os.environ.get("MONGO_URI")
-mongo = PyMongo(app)
+app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024 # 512MB
 login = LoginManager(app)
 login.login_view = '/login'
 app.config['TESTING'] = False
-db = mongo.db
+db = Database()
 flask_bootstrap.Bootstrap(app)
 
 @app.context_processor
 def inject_globals():
-    from models import User
-    return dict(User=User)
+    from models import User, Group
+    return dict(User=User, Group=Group)
 
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.googlemail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))

@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Gentium+Plus:wght@700&family=Moirai+One&family=PT+Sans&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap" rel="stylesheet">
       <title>Thought</title>
-    <style src="{{ url_for('static', filename='css/base.css') }}"></style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 
   </head>
   <body class="{% if session.get('theme') == 'dark' %}dark-mode{% endif %}">
@@ -52,12 +52,48 @@
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link d-flex align-items-center" href="/explore">
+          <span class="material-symbols-outlined mr-2">explore</span>
+          <span class="d-lg-none">Explore</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link d-flex align-items-center" href="/notifications">
+          <span class="material-symbols-outlined mr-2">notifications</span>
+          <span class="d-lg-none">Notifications</span>
+          <span id="notif-badge" class="badge badge-danger" style="display: none;"></span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link d-flex align-items-center" href="/bookmarks">
+          <span class="material-symbols-outlined mr-2">bookmark</span>
+          <span class="d-lg-none">Bookmarks</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link d-flex align-items-center" href="/groups">
+          <span class="material-symbols-outlined mr-2">groups</span>
+          <span class="d-lg-none">Communities</span>
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link d-flex align-items-center" href="/upload">
           <span class="material-symbols-outlined mr-2">photo_camera</span>
           <span class="d-lg-none">Upload</span>
         </a>
       </li>
     </ul>
+    <form class="form-inline my-2 my-lg-0" action="/search" method="get">
+      <input class="form-control mr-sm-2 rounded-pill" type="search" placeholder="Search..." aria-label="Search" name="q" value="{{ request.args.get('q', '') }}">
+      <button class="btn btn-outline-success my-2 my-sm-0 rounded-pill" type="submit">
+          <span class="material-symbols-outlined align-middle">search</span>
+      </button>
+    </form>
+    <div class="ml-2">
+        <span class="material-symbols-outlined text-white cursor-pointer" onclick="toggleTheme()" id="theme-icon">
+            {{ 'light_mode' if session.get('theme') == 'dark' else 'dark_mode' }}
+        </span>
+    </div>
   </div>
 </nav>
     <br/>
@@ -78,5 +114,35 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    <script>
+      function toggleTheme() {
+        const currentTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+        fetch('/save_theme', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ theme: currentTheme })
+        }).then(() => {
+          location.reload();
+        });
+      }
+
+      function updateNotifCount() {
+        fetch('/api/notifications/unread_count')
+          .then(r => r.json())
+          .then(data => {
+            const badge = document.getElementById('notif-badge');
+            if (data.count > 0) {
+              badge.textContent = data.count;
+              badge.style.display = 'inline';
+            } else {
+              badge.style.display = 'none';
+            }
+          });
+      }
+      if ({{ 'true' if current_user.is_authenticated else 'false' }}) {
+        updateNotifCount();
+        setInterval(updateNotifCount, 30000);
+      }
+    </script>
   </body>
 </html>

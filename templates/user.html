@@ -33,11 +33,21 @@
                                 {{ user.get_following_number() }}
                             </span>
                         </p>
+                        <div class="d-flex gap-3 text-muted small">
+                            <span>Posts: {{ stats.total_posts }}</span>
+                            <span>Likes: {{ stats.total_likes }}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-end gap-3 bg-white">
 
                     {% if user.username != current_user.username %}
+                        <span class="material-symbols-outlined"
+                              style="cursor: pointer;"
+                              onclick="if(confirm('Block this user?')) { fetch('/block/{{ user.username }}', {method: 'POST'}).then(() => location.reload()); }"
+                              title="Block User">
+                              block
+                        </span>
                         <span class="material-symbols-outlined"
                               style="cursor: pointer;"
                               onclick="location.href='/message/{{ user.username }}'">
@@ -47,8 +57,15 @@
                               class="material-symbols-outlined"
                               style="cursor: pointer;"
                               data-username="{{ user.username }}"
-                              data-following="{{ 'true' if current_user.username in user.followers else 'false' }}">
-                            {{ 'remove' if current_user.username in user.followers else 'add' }}
+                              data-following="{{ 'true' if current_user._id in user.followers else 'false' }}"
+                              data-requested="{{ 'true' if current_user._id in user.follow_requests else 'false' }}">
+                            {% if current_user._id in user.followers %}
+                                person_remove
+                            {% elif current_user._id in user.follow_requests %}
+                                hour_glass
+                            {% else %}
+                                person_add
+                            {% endif %}
                         </span>
                     {% else %}
                         <span class="material-symbols-outlined"
@@ -71,9 +88,20 @@
 
 <hr class="my-5">
 
-{% for post in posts %}
-    {% include '_post.html' %}
-{% endfor %}
+{% if private %}
+    <div class="text-center py-5">
+        <span class="material-symbols-outlined display-1 text-muted">lock</span>
+        <h4 class="mt-3">This account is private</h4>
+        <p class="text-muted">Follow them to see their posts.</p>
+    </div>
+{% else %}
+    {% for post in posts %}
+        {% include '_post.html' %}
+    {% endfor %}
+    {% if not posts %}
+        <p class="text-center text-muted">No posts yet.</p>
+    {% endif %}
+{% endif %}
 
 <div class="modal fade" id="followModal" tabindex="-1" aria-labelledby="followModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable">
@@ -136,7 +164,7 @@
         {# --- VIDEOS --- #}
         {% for vid in videos %}
         <div class="col-6 col-md-4 col-lg-3">
-            <div class="gallery-card shadow-sm media-trigger"
+            <div class="gallery-card shadow-sm media-trigger position-relative"
                  data-type="video"
                  data-src="{{ url_for('render_image', userid=user._id, imageuid=vid) }}">
                 <div class="media-aspect-container">
@@ -145,6 +173,13 @@
                         <source src="{{ url_for('render_image', userid=user._id, imageuid=vid) }}" type="video/mp4">
                     </video>
                 </div>
+                {% if user.username == current_user.username %}
+                <form action="{{ url_for('delete_image', image_name=vid) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                    <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this video?')">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -152,13 +187,20 @@
         {# --- IMAGES --- #}
         {% for img in non_videos %}
         <div class="col-6 col-md-4 col-lg-3">
-            <div class="gallery-card shadow-sm media-trigger"
+            <div class="gallery-card shadow-sm media-trigger position-relative"
                  data-type="image"
                  data-src="{{ url_for('render_image', userid=user._id, imageuid=img) }}">
                 <div class="media-aspect-container">
                     <img src="{{ url_for('render_image', userid=user._id, imageuid=img) }}"
                          class="media-content" alt="Upload">
                 </div>
+                {% if user.username == current_user.username %}
+                <form action="{{ url_for('delete_image', image_name=img) }}" method="POST" class="position-absolute bottom-0 end-0 m-2" style="z-index: 3;">
+                    <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" onclick="return confirm('Delete this image?')">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

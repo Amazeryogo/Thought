@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4" style="font-family: 'Roboto Slab', serif;">Search Results for "{{ q }}"</h2>
+
+    {% if hashtags %}
+    <section class="mb-5">
+        <h4>Hashtags</h4>
+        <div class="d-flex flex-wrap gap-2">
+            {% for tag in hashtags %}
+            <a href="{{ url_for('hashtag_view', name=tag.name) }}" class="btn btn-outline-primary btn-sm rounded-pill">
+                #{{ tag.name }} ({{ tag.count }})
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if users %}
+    <section class="mb-5">
+        <h4>Users</h4>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for u in users %}
+            <div class="col">
+                <div class="card h-100 shadow-sm rounded-4 border-0">
+                    <div class="card-body d-flex align-items-center">
+                        <img src="{{ User.avatar(u._id) }}" class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                        <div>
+                            <h5 class="mb-0"><a href="/{{ u.username }}" class="text-decoration-none">{{ u.username }}</a></h5>
+                            <small class="text-muted">{{ u.aboutme|truncate(30) }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if posts %}
+    <section>
+        <h4>Posts</h4>
+        {% for post in posts %}
+            {% include '_post.html' %}
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if not users and not posts and not hashtags %}
+    <div class="text-center py-5">
+        <span class="material-symbols-outlined display-1 text-muted">search_off</span>
+        <p class="mt-3 fs-5">No results found for your search.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -3,9 +3,7 @@ Werkzeug
 Flask_WTF
 WTForms
 flask_login
-flask_pymongo
 flask_bootstrap
-dnspython
 gunicorn
 markdown
 pyjwt

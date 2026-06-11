@@ -9,8 +9,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        followIcon.textContent = data.is_following ? "remove" : "add";
                         followIcon.dataset.following = data.is_following;
+                        if (data.action === 'requested') {
+                            followIcon.textContent = "hour_glass";
+                        } else if (data.action === 'request cancelled') {
+                            followIcon.textContent = "person_add";
+                        } else {
+                            followIcon.textContent = data.is_following ? "person_remove" : "person_add";
+                        }
                         document.getElementById("followerCount").textContent = data.follower_count;
                     } else {
                         alert(data.message || "Action failed");

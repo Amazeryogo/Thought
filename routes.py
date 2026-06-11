@@ -3,14 +3,36 @@ from forms import *
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import re
+import time
 import subprocess
 import shutil
 import markdown
 from datetime import datetime as dt
-from core import app, db
+from core import app, db, ASCENDING, DESCENDING
+from profanity import filter_profanity
 from flask import request, jsonify
 from hashlib import md5
+from functools import wraps
 import urllib.request
+def rate_limit(limit=500, period=60):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if current_user.is_authenticated:
+                key = f"rate_limit:{current_user._id}:{f.__name__}"
+                now = time.time()
+                try:
+                    db.ratelimits.delete_many({"key": key, "timestamp": {"$lt": now - period}})
+                    calls = len(list(db.ratelimits.find({"key": key})))
+                    if calls >= limit:
+                        flash("You are doing that too much. Please wait a moment.", "warning")
+                        return redirect(request.referrer or url_for('home'))
+                    db.ratelimits.insert_one({"key": key, "timestamp": now})
+                except Exception as e:
+                    pass # Silently fail rate limiting if DB is down
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
 
 @app.route('/image/posts/<user_id>/<image_name>')
 def image_post(user_id, image_name):
@@ -67,13 +89,141 @@ def load_user(user_id):
 
 @app.route('/')
 @app.route('/home', methods=['GET', 'POST'])
+@login_required
 def home():
-    posts = db.postdb.find().sort("timestamp", ASCENDING).limit(10)
+    # Follow Feed: Show posts from people you follow + your own posts (excluding drafts)
+    following = current_user.get_following()
+    blocked = current_user.json().get('blocked_users', [])
+    feed_users = [f for f in following if f not in blocked] + [current_user._id]
+
+    posts = db.postdb.find({"user_id": {"$in": feed_users}, "is_draft": {"$ne": True}, "group_id": None}).sort("timestamp", DESCENDING).limit(20)
+
+    # If feed is too small, supplement with global posts
+    p_list = list(posts)
+    if len(p_list) < 5:
+        global_posts = db.postdb.find({"user_id": {"$nin": feed_users}}).sort("timestamp", DESCENDING).limit(10)
+        p_list.extend(list(global_posts))
+        # Re-sort combined list
+        p_list.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+    p2 = []
+    for i in p_list:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2)
+
+@app.route('/explore')
+@login_required
+def explore():
+    # Global feed (excluding drafts, blocked users, and community posts)
+    blocked = current_user.json().get('blocked_users', [])
+    posts = db.postdb.find({
+        "is_draft": {"$ne": True},
+        "user_id": {"$nin": blocked},
+        "group_id": None
+    }).sort("timestamp", DESCENDING).limit(20)
+
+    # Simple decay: score = count / (hours_since_last_post + 1)^1.5
+    all_hashtags = db.hashtagsdb.find()
+    hashtag_scores = []
+    now = dt.now()
+    for h in all_hashtags:
+        last_used = h.get('last_used', now)
+        if isinstance(last_used, str): last_used = dt.fromisoformat(last_used)
+        hours_old = (now - last_used).total_seconds() / 3600
+        score = h.get('count', 0) / ((hours_old + 1) ** 1.5)
+        hashtag_scores.append((h, score))
+
+    hashtag_scores.sort(key=lambda x: x[1], reverse=True)
+    trending = [x[0] for x in hashtag_scores[:10]]
+
+    # Suggested Users: People you don't follow but your follows follow
+    following = current_user.get_following()
+    suggested = []
+    if following:
+        # This is expensive O(N^2) for my simple DB, but okay for moderate size
+        potential = []
+        for f_id in following:
+            f_user = User.get_by_id(f_id)
+            if f_user:
+                potential.extend(f_user.get_following())
+
+        # Filter: not you, not already following
+        potential = [p for p in potential if p != current_user._id and p not in following]
+        # Count frequency
+        from collections import Counter
+        counts = Counter(potential).most_common(5)
+        suggested = [User.get_by_id(u_id) for u_id, c in counts if User.get_by_id(u_id)]
+
     p2 = []
     for i in posts:
         i['content'] = markdown.markdown(i['content'])
         p2.append(i)
-    return render_template('home.html', posts=p2)
+    return render_template('explore.html', posts=p2, trending=trending, suggested=suggested)
+
+@app.route('/search')
+@login_required
+def search():
+    q = request.args.get('q', '')
+    if not q:
+        return render_template('search.html')
+
+    # Search users, posts, hashtags
+    users = db.userdb.find({"username": {"$regex": q}})
+    posts = db.postdb.find({"$or": [{"title": {"$regex": q}}, {"content": {"$regex": q}}]}).sort("timestamp", DESCENDING)
+    hashtags = db.hashtagsdb.find({"name": {"$regex": q}})
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+
+    return render_template('search.html', users=users, posts=p2, hashtags=hashtags, q=q)
+
+@app.route('/hashtag/<name>')
+@login_required
+def hashtag_view(name):
+    posts = db.postdb.find({"content": {"$regex": f"#{name}"}}).sort("timestamp", DESCENDING)
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2, title=f"#{name}")
+
+@app.route("/poll/vote/<post_id>", methods=['POST'])
+@login_required
+def poll_vote(post_id):
+    option_index = request.json.get('option')
+    post = db.postdb.find_one({"_id": post_id})
+    if not post or 'poll' not in post:
+        return jsonify({"success": False, "message": "No poll found"}), 404
+
+    # Check if user already voted
+    for opt in post['poll']['options']:
+        if current_user._id in opt.get('voters', []):
+            return jsonify({"success": False, "message": "Already voted"}), 400
+
+    # Add vote
+    db.postdb.update_one(
+        {"_id": post_id},
+        {"$addToSet": {f"poll.options.{option_index}.voters": current_user._id}}
+    )
+    # Re-fetch for updated counts
+    updated_post = db.postdb.find_one({"_id": post_id})
+    return jsonify({"success": True, "poll": updated_post['poll']})
+
+@app.route("/follow_request/<action>/<user_id>", methods=["POST"])
+@login_required
+def handle_follow_request(action, user_id):
+    if action == "accept":
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"follow_requests": user_id}, "$addToSet": {"followers": user_id}})
+        db.userdb.update_one({"_id": user_id}, {"$addToSet": {"following": current_user._id}})
+        Notification.create(user_id, 'follow', current_user._id)
+        flash("Follow request accepted.", "success")
+    else:
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"follow_requests": user_id}})
+        flash("Follow request rejected.", "info")
+    return redirect(url_for('notifications'))
 
 @app.route("/api/user/active", methods=["POST"])
 @login_required
@@ -111,12 +261,22 @@ def post_view(post_id):
     form = CommentForm()
 
     if form.validate_on_submit():
-        if len(form.content.data) in range(COMMENT_MIN,COMMENT_MAX+1):
-            Comment.create(
+        content = filter_profanity(form.content.data)
+        if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
+            comment = Comment.create(
                 post_id=post_id,
                 user_id=current_user._id,
-                content=form.content.data
+                content=content
             )
+            # Notify post owner
+            Notification.create(post.user_id, 'comment', current_user._id, post_id=post_id, comment_id=comment._id)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=post_id, comment_id=comment._id)
             flash("Comment added.", "success")
             return redirect(url_for('post_view', post_id=post_id))
         else:
@@ -161,13 +321,23 @@ def reply_to_comment(comment_id):
 
     content = request.form.get("reply_content")
     if content:
+        content = filter_profanity(content)
         if len(content) in range(COMMENT_MIN,COMMENT_MAX+1):
-            Comment.create(
-            post_id=parent_comment.post_id,
-            username=current_user.username,
-            content=content,
-            parent_comment_id=comment_id
-        )
+            comment = Comment.create(
+                post_id=parent_comment.post_id,
+                user_id=current_user._id,
+                content=content,
+                parent_comment_id=comment_id
+            )
+            # Notify parent comment owner
+            Notification.create(parent_comment.user_id, 'comment', current_user._id, post_id=parent_comment.post_id, comment_id=comment._id)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=parent_comment.post_id, comment_id=comment._id)
             flash("Reply posted!", "success")
         else:
             if len(content) > COMMENT_MAX:
@@ -235,6 +405,18 @@ def upload_content():
 def render_image(userid,imageuid):
     return send_from_directory(IMAGED + '/users/' + userid +'/images', imageuid)
 
+@app.route("/delete_image/<image_name>", methods=["POST"])
+@login_required
+def delete_image(image_name):
+    image_name = secure_filename(image_name)
+    image_path = os.path.join(IMAGED, 'users', current_user._id, 'images', image_name)
+    if os.path.exists(image_path):
+        os.remove(image_path)
+        flash(f"Image {image_name} deleted.", "success")
+    else:
+        flash("Image not found.", "danger")
+    return redirect(url_for('user', username='me'))
+
 
 @app.route("/api/upload/message_image", methods=["POST"])
 @login_required
@@ -274,9 +456,46 @@ def user(username):
         user = User.get_by_username(username)
         if user is None:
             return redirect('/404')
+
+    # Check if blocked
+    blocked_by_them = current_user._id in user.json().get('blocked_users', [])
+    blocked_by_me = user._id in current_user.json().get('blocked_users', [])
+    if blocked_by_them or blocked_by_me:
+        flash("Profile unavailable.", "danger")
+        return redirect(url_for('home'))
+
     avatar = User.avatar(user.username)
     aboutme = User.get_aboutme(user.username)
-    posts = db.postdb.find({"user_id": user._id}).sort("timestamp", DESCENDING).limit(10)
+
+    # User Stats
+    user_posts = db.postdb.find({"user_id": user._id})
+    total_likes = sum(p.get('likes', 0) for p in user_posts)
+    stats = {
+        "total_posts": len(list(db.postdb.find({"user_id": user._id}))),
+        "total_likes": total_likes,
+        "member_since": user.json().get('timestamp', 'Unknown')
+    }
+
+    # Post visibility logic
+    query = {"user_id": user._id}
+    if user._id == current_user._id:
+        # User viewing their own profile sees everything
+        pass
+    else:
+        query["is_draft"] = {"$ne": True}
+    if user._id != current_user._id:
+        is_following = current_user._id in user.get_followers()
+        if user.json().get('is_private') and not is_following:
+            return render_template('user.html', user=user, posts=[], avatar=avatar, aboutme=aboutme, private=True)
+
+        # Filter visibility levels
+        visible_levels = ['public']
+        if is_following:
+            visible_levels.append('followers')
+        query['visibility'] = {"$in": visible_levels}
+        query['group_id'] = None # Don't show community posts on public profile
+
+    posts = db.postdb.find(query).sort("timestamp", DESCENDING).limit(10)
     p2 = []
     for post in posts:
         post['content'] = markdown.markdown(post['content'])
@@ -300,6 +519,7 @@ def user(username):
         aboutme=aboutme,
         videos = video,
         non_videos = non_video,
+        stats = stats
     )
 
 @app.route("/register", methods=['GET', 'POST'])
@@ -339,6 +559,10 @@ def login():
             username = request.form["username"]
             password = request.form["password"]
             user = User.get_by_username(username)
+            if user and user.json().get('is_banned'):
+                flash("Your account has been banned.", "danger")
+                return redirect(url_for('login'))
+
             if user is not None and User.login_valid(username, password):
                 login_user(user)
                 current_user.is_authenticated = True
@@ -358,8 +582,16 @@ def login():
 
 @app.route("/upload/post", methods=['GET', 'POST'])
 @login_required
+@rate_limit(limit=50, period=300) # Limit post creation
 def createnewpost():
     form = PostForm()
+    # Populate communities
+    user_groups = db.groupsdb.find({"members": current_user._id})
+    group_choices = [('account', 'My Account')]
+    for g in user_groups:
+        group_choices.append((g['_id'], f"Group: {g['name']}"))
+    form.post_to.choices = group_choices
+
     p = 0
     if form.validate_on_submit():
         title = form.title.data
@@ -379,15 +611,56 @@ def createnewpost():
                     save_path = os.path.join(user_folder, unique_filename)
                     file.save(save_path)
                     image_urls.append(f"/image/posts/{current_user._id}/{unique_filename}")
+        content = filter_profanity(content)
+
         if len(content) in range(POST_MIN, POST_MAX+1):
-            new_post = Post(
-                title=title,
-                content=content,
-                timestamp=timestamp,
-                user_id=user_id,
-                images=image_urls
-            )
-            new_post.save_to_mongo()
+            visibility = form.visibility.data
+            is_draft = form.is_draft.data
+            post_to = form.post_to.data
+            poll_data = None
+            if form.is_poll.data and form.poll_options.data:
+                # If posting to group, must be owner or mod
+                if post_to != 'account':
+                    group = Group.get_by_id(post_to)
+                    if group.owner_id != current_user._id and current_user._id not in group.mods:
+                        flash("Only moderators can create polls in this community.", "danger")
+                        return render_template('forms/edit_post.html', form=form, p=p)
+
+                options = [o.strip() for o in form.poll_options.data.split(',')]
+                poll_data = {"options": [{"text": o, "voters": []} for o in options]}
+
+            new_post_data = {
+                "title": title,
+                "content": content,
+                "timestamp": timestamp,
+                "user_id": user_id,
+                "images": image_urls,
+                "visibility": visibility,
+                "poll": poll_data,
+                "is_draft": is_draft,
+                "group_id": post_to if post_to != 'account' else None
+            }
+            try:
+                res = db.postdb.insert_one(new_post_data)
+                if not res:
+                    flash("Failed to save post. Please try again.", "danger")
+                    return render_template('forms/edit_post.html', form=form, p=p)
+                new_post = Post(**res)
+            except Exception as e:
+                flash(f"Database error: {e}", "danger")
+                return render_template('forms/edit_post.html', form=form, p=p)
+
+            # Parse hashtags
+            hashtags = re.findall(r'#(\w+)', content)
+            for h in set(hashtags):
+                db.hashtagsdb.update_one({"name": h.lower()}, {"$addToSet": {"posts": new_post._id}, "$inc": {"count": 1}}, upsert=True)
+
+            # Check for mentions
+            mentions = re.findall(r'@(\w+)', content)
+            for m in set(mentions):
+                target_user = User.get_by_username(m)
+                if target_user:
+                    Notification.create(target_user._id, 'mention', current_user._id, post_id=new_post._id)
             flash('Your post has been created!', 'success')
             return redirect('/me')
         else:
@@ -423,12 +696,279 @@ def like():
 
     Post.liked(_id=post_id, userx=current_user._id)
     post = db.postdb.find_one({"_id": post_id})
+
+    # Notify post owner if it was a like (not a removal)
+    if current_user._id in post.get('liked_by', []):
+        Notification.create(post['user_id'], 'like', current_user._id, post_id=post_id)
     return jsonify({
         "success": True,
         "likes": post.get("likes", 0),
         "dislikes": post.get("dislikes", 0)
     })
 
+
+@app.route("/repost/<post_id>", methods=['POST'])
+@login_required
+def repost(post_id):
+    original_post = Post.get_by_id(post_id)
+    if not original_post:
+        abort(404)
+
+    # Create a new post that references the original
+    new_post = Post(
+        title=f"Repost: {original_post.title}",
+        content=f"Reposted from @{original_post.username}\n\n{original_post.content}",
+        timestamp=dt.now().strftime('%H:%M:%S %Y-%m-%d'),
+        user_id=current_user._id,
+        images=original_post.images
+    )
+    new_post.save_to_db()
+
+    # Notify original owner
+    Notification.create(original_post.user_id, 'repost', current_user._id, post_id=new_post._id)
+
+    flash("Post reposted!", "success")
+    return redirect(url_for('home'))
+
+@app.route("/bookmark/<post_id>", methods=['POST'])
+@login_required
+def bookmark(post_id):
+    # We store bookmarks in the user document
+    user_data = db.userdb.find_one({"_id": current_user._id})
+    is_bookmarked = post_id in user_data.get('bookmarks', [])
+    if is_bookmarked:
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"bookmarks": post_id}})
+        action = "removed from bookmarks"
+    else:
+        db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"bookmarks": post_id}})
+        action = "added to bookmarks"
+
+    return jsonify({"success": True, "action": action})
+
+@app.route("/bookmarks")
+@login_required
+def bookmarks():
+    user_data = db.userdb.find_one({"_id": current_user._id})
+    bookmark_ids = user_data.get('bookmarks', [])
+    posts = db.postdb.find({"_id": {"$in": bookmark_ids}}).sort("timestamp", DESCENDING)
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+    return render_template('home.html', posts=p2, title="My Bookmarks")
+
+@app.route("/block/<username>", methods=["POST"])
+@login_required
+def block_user(username):
+    v = get_idd(username)
+    if v == current_user._id:
+        return jsonify({"success": False, "message": "You cannot block yourself!"}), 400
+
+    db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"blocked_users": v}})
+    # Also unfollow
+    db.userdb.update_one({"_id": current_user._id}, {"$pull": {"following": v}})
+    db.userdb.update_one({"_id": v}, {"$pull": {"followers": current_user._id}})
+
+    return jsonify({"success": True, "message": f"User {username} blocked."})
+
+@app.route("/react/<post_id>", methods=['POST'])
+@login_required
+def post_react(post_id):
+    reaction_type = request.json.get('type')
+    # Use existing reactions logic in db or create new
+    db.postdb.update_one(
+        {"_id": post_id},
+        {"$addToSet": {f"reactions.{reaction_type}": current_user._id}}
+    )
+    post = db.postdb.find_one({"_id": post_id})
+    return jsonify({"success": True, "reactions": post.get('reactions', {})})
+
+@app.route("/report/<type>/<id>", methods=['POST'])
+@login_required
+def report_content(type, id):
+    reason = request.json.get('reason', 'No reason provided')
+    db.reportsdb.insert_one({
+        "type": type, # 'post', 'comment', 'user'
+        "target_id": id,
+        "reporter_id": current_user._id,
+        "reason": reason,
+        "timestamp": dt.now(),
+        "status": "pending"
+    })
+    return jsonify({"success": True, "message": "Report submitted."})
+
+@app.route("/admin/dashboard")
+@login_required
+def admin_dashboard():
+    if not current_user.json().get('is_admin'):
+        abort(403)
+
+    reports = db.reportsdb.find({"status": "pending"}).sort("timestamp", -1)
+    users = db.userdb.find().limit(50)
+    return render_template('admin/dashboard.html', reports=reports, users=users)
+
+@app.route("/admin/ban/<user_id>", methods=['POST'])
+@login_required
+def ban_user(user_id):
+    if not current_user.json().get('is_admin'):
+        abort(403)
+
+    db.userdb.update_one({"_id": user_id}, {"$set": {"is_banned": True}})
+    db.audit_logs.insert_one({
+        "action": "ban_user",
+        "admin_id": current_user._id,
+        "target_id": user_id,
+        "timestamp": dt.now()
+    })
+    flash("User banned.", "success")
+    return redirect(url_for('admin_dashboard'))
+
+
+
+@app.route("/api/post/<post_id>/view", methods=['POST'])
+@login_required
+def track_view(post_id):
+    db.postdb.update_one({"_id": post_id}, {"$inc": {"views": 1}})
+    return jsonify({"success": True})
+
+@app.route("/groups")
+@login_required
+def groups_list():
+    groups = db.groupsdb.find()
+    return render_template('groups/list.html', groups=groups)
+
+@app.route("/group/create", methods=['GET', 'POST'])
+@login_required
+def create_group():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        desc = request.form.get('description')
+        db.groupsdb.insert_one({
+            "name": name,
+            "description": desc,
+            "owner_id": current_user._id,
+            "members": [current_user._id],
+            "timestamp": dt.now()
+        })
+        flash("Group created!", "success")
+        return redirect(url_for('groups_list'))
+    return render_template('forms/create_group.html')
+
+@app.route("/group/<group_id>")
+@login_required
+def group_view(group_id):
+    group_data = db.groupsdb.find_one({"_id": group_id})
+    if not group_data:
+        abort(404)
+    group = Group(**group_data)
+    posts = db.postdb.find({"group_id": group_id, "is_draft": {"$ne": True}}).sort("timestamp", DESCENDING)
+    is_member = current_user._id in group.members
+    is_mod = current_user._id in group.mods or group.owner_id == current_user._id
+
+    # Sidebar data
+    owner = User.get_by_id(group.owner_id)
+    mods = [User.get_by_id(uid) for uid in group.mods]
+    members = [User.get_by_id(uid) for uid in group.members[:10]] # Limit preview
+
+    p2 = []
+    for i in posts:
+        i['content'] = markdown.markdown(i['content'])
+        p2.append(i)
+
+    return render_template('groups/view.html',
+                           group=group,
+                           posts=p2,
+                           is_member=is_member,
+                           is_mod=is_mod,
+                           owner=owner,
+                           mods=mods,
+                           members=members,
+                           User=User)
+
+@app.route("/group/<group_id>/stats")
+@login_required
+def group_stats(group_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    group_posts = db.postdb.find({"group_id": group_id})
+    total_views = sum(p.get('views', 0) for p in group_posts)
+
+    stats = {
+        "member_count": len(group.members),
+        "post_count": len(list(db.postdb.find({"group_id": group_id}))),
+        "total_views": total_views,
+        "request_count": len(group.join_requests)
+    }
+    return render_template('groups/stats.html', group=group, stats=stats)
+
+@app.route("/group/<group_id>/appoint_mod/<user_id>", methods=['POST'])
+@login_required
+def appoint_mod(group_id, user_id):
+    group = Group.get_by_id(group_id)
+    if not group or group.owner_id != current_user._id:
+        abort(403)
+
+    db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"mods": user_id}})
+    flash("Moderator appointed.", "success")
+    return redirect(url_for('group_view', group_id=group_id))
+
+@app.route("/group/join/<group_id>", methods=['POST'])
+@login_required
+def join_group(group_id):
+    group = Group.get_by_id(group_id)
+    if not group:
+        abort(404)
+    if current_user._id in group.members:
+        flash("Already a member.", "info")
+    elif current_user._id in group.join_requests:
+        flash("Request already pending.", "info")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$addToSet": {"join_requests": current_user._id}})
+        Notification.create(group.owner_id, 'group_request', current_user._id, comment_id=group_id)
+        flash("Join request sent!", "success")
+    return redirect(url_for('groups_list'))
+
+@app.route("/group/leave/<group_id>", methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = Group.get_by_id(group_id)
+    if not group:
+        abort(404)
+    if group.owner_id == current_user._id:
+        flash("Owners cannot leave their community. Delete it instead?", "warning")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"members": current_user._id, "mods": current_user._id}})
+        flash("You have left the community.", "info")
+    return redirect(url_for('groups_list'))
+
+@app.route("/group/manage/<group_id>")
+@login_required
+def group_manage(group_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    requests = [User.get_by_id(uid) for u_id in group.join_requests if (uid := u_id)]
+    return render_template('groups/manage.html', group=group, requests=requests)
+
+@app.route("/group/request/<action>/<group_id>/<user_id>", methods=["POST"])
+@login_required
+def handle_group_request(action, group_id, user_id):
+    group = Group.get_by_id(group_id)
+    if not group or (group.owner_id != current_user._id and current_user._id not in group.mods):
+        abort(403)
+
+    if action == "accept":
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"join_requests": user_id}, "$addToSet": {"members": user_id}})
+        Notification.create(user_id, 'group_accept', current_user._id, comment_id=group_id)
+        flash("Request accepted.", "success")
+    else:
+        db.groupsdb.update_one({"_id": group_id}, {"$pull": {"join_requests": user_id}})
+        flash("Request rejected.", "info")
+    return redirect(url_for('group_manage', group_id=group_id))
 
 @app.route("/dislike", methods=['POST'])
 @login_required
@@ -460,11 +1000,13 @@ def settings():
         form.username.data = current_user.username
         form.content.data = User.get_aboutme(current_user._id)
         form.email.data = current_user.email
+        form.is_private.data = current_user.json().get('is_private', False)
 
     if form.validate_on_submit():
         username = form.username.data
         aboutme = form.content.data.strip()
         email = form.email.data.strip()
+        is_private = form.is_private.data
         check = db.userdb.find_one({"username": form.username.data})
         if current_user.username == username:
             pass
@@ -500,6 +1042,7 @@ def settings():
             User.change_username(current_user._id, username)
             User.addaboutme(current_user._id, aboutme)
             User.change_email(current_user._id, email)
+            db.userdb.update_one({"_id": current_user._id}, {"$set": {"is_private": is_private}})
             file = request.files.get("pfp")
             if file:
                 if file.filename == "":
@@ -648,10 +1191,16 @@ def get_messages():
 def send_message_v2():
     data = request.get_json()
     recipient = data.get("recipient")
-    content = data.get("message")
+    content = filter_profanity(data.get("message"))
 
     if not recipient or not content:
         return jsonify({"success": False, "error": "Missing data"}), 400
+
+    # Check blocking
+    recipient_user = User.get_by_id(recipient)
+    if recipient_user:
+        if current_user._id in recipient_user.blocked_users or recipient in current_user.json().get('blocked_users', []):
+            return jsonify({"success": False, "error": "Message blocked."}), 403
 
     msg = Messages.send_message(sender=current_user._id, receiver=recipient, message=content)
     db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_seen": dt.utcnow()}})
@@ -717,9 +1266,19 @@ def react_to_message():
 
     return jsonify({"success": True, "reactions": reactions})
 
-@app.route('/avatar/<username>')
-def avatar(username):
-    static_dir = os.path.join(IMAGED,'users',get_idd(username))
+@app.route('/avatar/<identifier>')
+def avatar(identifier):
+    # identifier could be ID or username
+    user = User.get_by_id(identifier) or User.get_by_username(identifier)
+
+    if not user:
+        # Check if the identifier is already an ID and try to find by username
+        user = User.get_by_username(identifier)
+
+    if not user:
+        return send_from_directory('static', 'noavatar.jpeg')
+
+    static_dir = os.path.join(IMAGED,'users',user._id)
     k = 0
     for ext in ['jpg', 'jpeg', 'png', 'gif']:
         path = os.path.join(static_dir, f"pfp.{ext}")
@@ -753,44 +1312,41 @@ def toggle_follow(username):
     if v == current_user._id:
         return jsonify({"success": False, "message": "You cannot follow yourself!"}), 400
 
-    target = db.userdb.find_one({"_id": v})
-    if not target:
+    target_data = db.userdb.find_one({"_id": v})
+    if not target_data:
         return jsonify({"success": False, "message": "User not found!"}), 404
 
-    is_following = db.userdb.find_one({
-        "_id": v,
-        "followers": current_user._id
-    })
+    target = User(**target_data)
+
+    is_following = current_user._id in target.followers
 
     if is_following:
-        db.userdb.update_one(
-            {"_id": v},
-            {"$pull": {"followers": current_user._id}}
-        )
-        db.userdb.update_one(
-            {"_id": current_user._id},
-            {"$pull": {"following": v}}
-        )
+        db.userdb.update_one({"_id": v}, {"$pull": {"followers": current_user._id}})
+        db.userdb.update_one({"_id": current_user._id}, {"$pull": {"following": v}})
         action = "unfollowed"
     else:
-        db.userdb.update_one(
-            {"_id": v},
-            {"$addToSet": {"followers": current_user._id}}
-        )
-        db.userdb.update_one(
-            {"_id": current_user._id},
-            {"$addToSet": {"following": v}}
-        )
-        action = "followed"
+        if target.is_private:
+            if current_user._id in target.follow_requests:
+                db.userdb.update_one({"_id": v}, {"$pull": {"follow_requests": current_user._id}})
+                action = "request cancelled"
+            else:
+                db.userdb.update_one({"_id": v}, {"$addToSet": {"follow_requests": current_user._id}})
+                Notification.create(v, 'follow_request', current_user._id)
+                action = "requested"
+        else:
+            db.userdb.update_one({"_id": v}, {"$addToSet": {"followers": current_user._id}})
+            db.userdb.update_one({"_id": current_user._id}, {"$addToSet": {"following": v}})
+            Notification.create(v, 'follow', current_user._id)
+            action = "followed"
 
     # Get updated count
-    updated_user = db.userdb.find_one({"_id": v})
-    follower_count = len(updated_user.get("followers", []))
+    updated_user_data = db.userdb.find_one({"_id": v})
+    follower_count = len(updated_user_data.get("followers", []))
 
     return jsonify({
         "success": True,
         "action": action,
-        "is_following": not is_following,
+        "is_following": current_user._id in updated_user_data.get("followers", []),
         "follower_count": follower_count
     })
 
@@ -865,7 +1421,7 @@ def create_repo():
             subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo_dir, check=True)
 
             new_repo = Repository(name=name, owner=current_user._id, description=form.description.data)
-            new_repo.save_to_mongo()
+            new_repo.save_to_db()
             flash(f"Repository {name} created successfully!", "success")
             return redirect(url_for("repo_view", username=current_user._id, reponame=name,current_user=current_user))
         except subprocess.CalledProcessError:
@@ -1111,6 +1667,45 @@ def delete_repo(repo_id):
     db.reposdb.delete_one({"_id": repo_id})
     flash(f"Repository {repo.name} deleted.", "success")
     return redirect(url_for("user_repos", username=current_user._id))
+
+@app.route("/notifications")
+@login_required
+def notifications():
+    notifs = Notification.find_by_user(current_user._id)
+    Notification.mark_all_read(current_user._id)
+    return render_template("notifications.html", notifications=notifs, User=User)
+
+@app.route("/api/notifications/unread_count")
+@login_required
+def unread_notifications_count():
+    count = len(db.notificationsdb.find({"user_id": current_user._id, "read": False}))
+    return jsonify({"count": count})
+
+@app.route("/api/user/data")
+@login_required
+def get_user_data():
+    # Limit: 1 per month (30 days)
+    last_export = current_user.json().get('last_data_export')
+    if last_export:
+        if isinstance(last_export, str):
+            last_export = dt.fromisoformat(last_export)
+        if (dt.now() - last_export).days < 30:
+            return jsonify({"error": "Data export is limited to once every 30 days."}), 429
+
+    db.userdb.update_one({"_id": current_user._id}, {"$set": {"last_data_export": dt.now()}})
+
+    limit = request.args.get("limit", default=100, type=int)
+
+    user_data = {
+        "profile": current_user.json(),
+        "posts": [p for p in db.postdb.find({"user_id": current_user._id}).limit(limit)],
+        "comments": [c for c in db.commentdb.find({"user_id": current_user._id}).limit(limit)],
+        "repositories": [r for r in db.reposdb.find({"owner": current_user._id}).limit(limit)],
+        "messages_sent": [m for m in db.messagesdb.find({"sender": current_user._id}).limit(limit)],
+        "messages_received": [m for m in db.messagesdb.find({"receiver": current_user._id}).limit(limit)]
+    }
+
+    return jsonify(user_data)
 def get_git_default_branch(repo_dir):
     try:
         # Check symbolic-ref first
@@ -1346,11 +1941,12 @@ def git_backend(username, reponame, rest):
 @app.route("/edit/post/<post_id>", methods=['GET', 'POST'])
 @login_required
 def edit_post(post_id):
-    post = Post.get_by_id(post_id)
-
-    if not post:
+    post_data = db.postdb.find_one({"_id": post_id})
+    if not post_data:
         flash("Post not found.", "danger")
         return redirect("/")
+
+    post = Post(**post_data)
 
     if post.user_id != current_user._id:
         flash("You are not authorized to edit this post.", "danger")
@@ -1358,20 +1954,40 @@ def edit_post(post_id):
 
     form = PostForm()
 
+    # Populate communities
+    user_groups = db.groupsdb.find({"members": current_user._id})
+    group_choices = [('account', 'My Account')]
+    for g in user_groups:
+        group_choices.append((g['_id'], f"Group: {g['name']}"))
+    form.post_to.choices = group_choices
+
     if request.method == 'GET':
         p = 1
         form.title.data = post.title
         form.content.data = post.content
+        form.visibility.data = post.visibility
+        form.is_draft.data = post.is_draft
+        form.post_to.data = post_data.get('group_id', 'account')
 
     if form.validate_on_submit():
-        if len(form.content.data) in range(POST_MIN,POST_MAX+1):
+        content = filter_profanity(form.content.data)
+        if len(content) in range(POST_MIN,POST_MAX+1):
+            # Save current state to edit history before updating
             db.postdb.update_one(
                 {"_id": post_id},
                 {
                     "$set": {
                         "title": form.title.data,
-                        "content": form.content.data
-                    }
+                        "content": content,
+                        "visibility": form.visibility.data,
+                        "is_draft": form.is_draft.data,
+                        "group_id": form.post_to.data if form.post_to.data != 'account' else None
+                    },
+                    "$addToSet": {"edit_history": {
+                        "title": post.title,
+                        "content": post.content,
+                        "timestamp": dt.now()
+                    }}
                 }
             )
             flash("Post updated successfully!", "success")

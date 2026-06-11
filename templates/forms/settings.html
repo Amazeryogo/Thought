@@ -16,6 +16,7 @@
                         {{ wtf.form_field(form.username) }}
                         {{ wtf.form_field(form.email) }}
                         {{ wtf.form_field(form.content) }}
+                        {{ wtf.form_field(form.is_private) }}
 
                         <div class="mb-3">
                             <label for="pfp" class="form-label">Profile Picture</label>
@@ -33,6 +34,17 @@
                             <input type="text" class="form-control bg-light" value="{{ current_user.git_token }}" readonly>
                         </div>
                         <small class="text-muted"><a href="/git_help">Use this as your password when cloning/pushing repositories.</a></small>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="mb-4">
+                        <h6>Privacy & Data</h6>
+                        <a href="{{ url_for('get_user_data') }}" class="btn btn-info w-100 mb-2">
+                            <span class="material-symbols-outlined align-middle me-2">download</span>
+                            Export My Data
+                        </a>
+                        <small class="text-muted d-block text-center">Allowed once every 30 days.</small>
                     </div>
 
                     <hr class="my-4">
