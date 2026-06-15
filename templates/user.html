@@ -34,13 +34,9 @@
                                 {{ user.get_following_number() }}
                             </span>
                         </p>
-                        <div class="d-flex gap-3 text-muted small">
-                            <span>Posts: {{ stats.total_posts }}</span>
-                            <span>Likes: {{ stats.total_likes }}</span>
-                        </div>
                     </div>
                 </div>
-                <div class="card-footer d-flex justify-content-end gap-3 bg-white">
+                <div class="card-footer d-flex justify-content-end gap-3">
 
                     {% if user.username != current_user.username %}
                         <span class="material-symbols-outlined"
@@ -69,6 +65,10 @@
                             {% endif %}
                         </span>
                     {% else %}
+                                                <div class="d-flex gap-3 text-muted small">
+                            <span>Posts: {{ stats.total_posts }}</span>
+                            <span>Likes: {{ stats.total_likes }}</span>
+                        </div>
                         <span class="material-symbols-outlined"
                               style="cursor: pointer;"
                               onclick="location.href='/set/aboutme'">

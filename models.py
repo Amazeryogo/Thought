@@ -100,7 +100,7 @@ class User(UserMixin):
         if data is not None:
             return data["aboutme"]
         else:
-            return "No About Me"
+            return ""
 
     @classmethod
     def get_by_email(cls, email):

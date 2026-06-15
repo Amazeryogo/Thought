@@ -61,16 +61,6 @@
           </a>
         {% else %}
           <div class="d-flex align-items-center gap-2">
-            <div class="dropdown">
-              <span class="material-symbols-outlined text-success action-icon dropdown-toggle" data-toggle="dropdown" style="cursor: pointer;">add_reaction</span>
-              <div class="dropdown-menu p-2">
-                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="love">❤️</span>
-                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="haha">😂</span>
-                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="wow">😮</span>
-                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="sad">😢</span>
-                <span class="react-btn cursor-pointer" data-id="{{ post._id }}" data-type="like">👍</span>
-              </div>
-            </div>
             <span class="like-btn material-symbols-outlined text-success action-icon" data-id="{{ post._id }}" style="cursor: pointer;" title="Like">thumb_up</span>
             <span id="like-count-{{ post._id }}" class="fw-bold text-dark">{{ post.likes }}</span>
           </div>
