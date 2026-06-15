@@ -18,6 +18,10 @@ document.addEventListener("DOMContentLoaded", function () {
                             followIcon.textContent = data.is_following ? "person_remove" : "person_add";
                         }
                         document.getElementById("followerCount").textContent = data.follower_count;
+                        const followingCountEl = document.getElementById("followingCount");
+                        if (followingCountEl && data.following_count !== undefined) {
+                            followingCountEl.textContent = data.following_count;
+                        }
                     } else {
                         alert(data.message || "Action failed");
                     }
@@ -31,8 +35,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const galleryModalEl = document.getElementById('galleryModal');
 
     if (galleryModalEl && galleryModalBody) {
-        const bsGalleryModal = new bootstrap.Modal(galleryModalEl);
-
         mediaTriggers.forEach(trigger => {
             trigger.addEventListener('click', function () {
                 const type = this.getAttribute('data-type');
@@ -47,29 +49,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     galleryModalBody.innerHTML = `
                         <img src="${src}" class="img-fluid rounded" style="max-height: 80vh;" alt="Preview">`;
                 }
-                bsGalleryModal.show();
+                $(galleryModalEl).modal('show');
             });
         });
 
         // Clear content when modal is closed to stop video audio
-        galleryModalEl.addEventListener('hidden.bs.modal', function () {
+        $(galleryModalEl).on('hidden.bs.modal', function () {
             galleryModalBody.innerHTML = '';
         });
     }
 
-    // 3. Hover popup for follower/following count
+    // 3. Click popup for follower/following count
     const hoverElements = document.querySelectorAll(".hover-follow");
     hoverElements.forEach(elem => {
-        let timer;
-        elem.addEventListener("mouseenter", () => {
+        elem.addEventListener("click", () => {
             const username = elem.dataset.username;
             const type = elem.dataset.type;
-            timer = setTimeout(() => {
-                openFollowModal(username, type);
-            }, 300);
-        });
-        elem.addEventListener("mouseleave", () => {
-            clearTimeout(timer);
+            openFollowModal(username, type);
         });
     });
 });
@@ -95,8 +91,7 @@ function openFollowModal(username, type) {
                 }
                 document.getElementById('followModalLabel').textContent = type.charAt(0).toUpperCase() + type.slice(1);
                 document.getElementById('followList').innerHTML = html;
-                const modal = new bootstrap.Modal(document.getElementById('followModal'));
-                modal.show();
+                $('#followModal').modal('show');
             } else {
                 alert("Could not load data.");
             }

@@ -168,9 +168,14 @@ class Collection:
         return self._send_cmd('find_one', query=self._serialize_query(query))
 
     def insert_one(self, document):
+        if '_id' not in document:
+            document['_id'] = os.urandom(16).hex()
         return self._send_cmd('insert_one', doc=self._serialize_doc(document))
 
     def insert_many(self, documents):
+        for document in documents:
+            if '_id' not in document:
+                document['_id'] = os.urandom(16).hex()
         return self._send_cmd('insert_many', docs=[self._serialize_doc(d) for d in documents])
 
     def update_one(self, query, update, upsert=False):
