@@ -9,3 +9,5 @@ markdown
 pyjwt
 Flask-Mail
 email-validator
+openai
+pypdf

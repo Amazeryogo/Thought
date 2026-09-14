@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .quiz-page {
+        min-height: 80vh;
+        padding: 3rem 0 5rem;
+    }
+
+    .quiz-card,
+    .question-card,
+    .final-card {
+        border: 1px solid rgba(29, 29, 29, 0.08);
+        border-radius: 1.4rem;
+        box-shadow: 0 1rem 2.5rem rgba(32, 26, 22, 0.08);
+    }
+
+    .quiz-card,
+    .final-card {
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+
+    .quiz-heading {
+        color: #1d1d1d;
+        font-family: 'Abril Fatface', cursive;
+        font-size: 2.6rem;
+    }
+
+    .quiz-subtitle {
+        color: #5c5a57;
+        font-family: 'PT Sans', sans-serif;
+    }
+
+    .upload-area {
+        padding: 1rem;
+        border: 1px dashed rgba(29, 29, 29, 0.2);
+        border-radius: 1rem;
+        background: rgba(247, 243, 238, 0.65);
+    }
+
+    .upload-area .form-control {
+        border: 1px solid rgba(29, 29, 29, 0.1);
+        border-radius: 0.8rem;
+        background: #fff;
+    }
+
+    .thought-button {
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #1d1d1d, #3a3330);
+        box-shadow: 0 0.7rem 1.3rem rgba(29, 29, 29, 0.14);
+        font-weight: 700;
+    }
+
+    .thought-button:hover {
+        background: linear-gradient(135deg, #292929, #4a403b);
+    }
+
+    .question-card {
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background: rgba(255, 255, 255, 0.94);
+    }
+
+    .question-title {
+        color: #1d1d1d;
+        font-size: 1.08rem;
+        font-weight: 700;
+        line-height: 1.55;
+        margin-bottom: 1rem;
+    }
+
+    .option {
+        display: block;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.7rem;
+        border: 1.5px solid rgba(29, 29, 29, 0.1);
+        border-radius: 0.85rem;
+        background: #fff;
+        cursor: pointer;
+        transition: 0.2s ease;
+    }
+
+    .option:hover {
+        border-color: rgba(207, 125, 66, 0.65);
+        background: rgba(231, 163, 108, 0.05);
+        transform: translateY(-1px);
+    }
+
+    .option input {
+        margin-right: 0.7rem;
+    }
+
+    .option.correct {
+        border-color: #5e8d77;
+        background: rgba(94, 141, 119, 0.1);
+    }
+
+    .option.wrong {
+        border-color: #ac6a64;
+        background: rgba(172, 106, 100, 0.1);
+    }
+
+    .option.disabled-option {
+        pointer-events: none;
+        opacity: 0.9;
+    }
+
+    .submit-answer {
+        margin-top: 0.5rem;
+        border: 1px solid rgba(29, 29, 29, 0.14);
+        border-radius: 999px;
+        background: transparent;
+        color: #1d1d1d;
+        font-weight: 700;
+    }
+
+    .submit-answer:hover {
+        border-color: #cf7d42;
+        background: rgba(231, 163, 108, 0.08);
+    }
+
+    .result {
+        display: none;
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 0.8rem;
+    }
+
+    .result.correct {
+        display: block;
+        background: rgba(94, 141, 119, 0.1);
+        color: #4f7b66;
+    }
+
+    .result.wrong {
+        display: block;
+        background: rgba(172, 106, 100, 0.1);
+        color: #985c57;
+    }
+
+    .explanation {
+        margin-top: 0.5rem;
+        color: #5c5a57;
+        line-height: 1.5;
+    }
+
+    .score-box {
+        display: none;
+        position: sticky;
+        top: 1rem;
+        z-index: 10;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(29, 29, 29, 0.08);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 0.7rem 1.5rem rgba(32, 26, 22, 0.08);
+    }
+
+    .score-label {
+        color: #5c5a57;
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .score-number {
+        color: #1d1d1d;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .final-score {
+        color: #1d1d1d;
+        font-size: 2.8rem;
+        font-weight: 700;
+    }
+</style>
+
+<div class="quiz-page">
+        <div class="card quiz-card mb-4">
+            <div class="card-body p-4 p-md-5">
+                <form id="upload-form" method="POST" enctype="multipart/form-data">
+                    <label for="file" class="form-label font-weight-bold">
+                        Upload a reading, note, or draft
+                    </label>
+
+                    <div class="upload-area">
+                        <input
+                            class="form-control form-control-lg"
+                            id="file"
+                            type="file"
+                            name="file"
+                            accept=".txt,.md,.py,.csv,.pdf"
+                            multiple
+                            required
+                        >
+                    </div>
+                    <button
+                        id="submit-button"
+                        class="btn btn-primary thought-button btn-lg btn-block mt-2"
+                        type="submit"
+                    >
+                        Generate quiz
+                    </button>
+
+                    <div id="loading" class="text-center mt-4 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Generating quiz...</span>
+                        </div>
+                        <p class="text-muted mt-2 mb-0">
+                            Reading your material and assembling the questions...
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% if quiz %}
+        <div id="score-box" class="score-box">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="score-label">Progress</div>
+                    <div id="score" class="score-number">
+                        0 / {{ quiz.questions|length }}
+                    </div>
+                </div>
+
+                <div id="percentage" class="font-weight-bold">
+                    0%
+                </div>
+            </div>
+        </div>
+
+        <div id="quiz-container">
+            {% for question in quiz.questions %}
+            <div class="question-card" data-answer="{{ question.answer }}">
+                <div class="question-title">
+                    Question {{ loop.index }}: {{ question.question }}
+                </div>
+
+                <label class="option" data-option="A">
+                    <input
+                        type="radio"
+                        name="question-{{ loop.index }}"
+                        value="A"
+                    >
+                    <strong>A.</strong> {{ question.options.A }}
+                </label>
+
+                <label class="option" data-option="B">
+                    <input
+                        type="radio"
+                        name="question-{{ loop.index }}"
+                        value="B"
+                    >
+                    <strong>B.</strong> {{ question.options.B }}
+                </label>
+
+                <label class="option" data-option="C">
+                    <input
+                        type="radio"
+                        name="question-{{ loop.index }}"
+                        value="C"
+                    >
+                    <strong>C.</strong> {{ question.options.C }}
+                </label>
+
+                <label class="option" data-option="D">
+                    <input
+                        type="radio"
+                        name="question-{{ loop.index }}"
+                        value="D"
+                    >
+                    <strong>D.</strong> {{ question.options.D }}
+                </label>
+
+                <button type="button" class="btn submit-answer">
+                    Check answer
+                </button>
+                <div class="result">
+                    <div class="result-message font-weight-bold"></div>
+                    <div class="explanation">{{ question.explanation }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div id="final-result" class="card final-card mt-4 d-none">
+            <div class="card-body text-center p-5">
+                <h2 class="font-weight-bold mb-3">Session complete</h2>
+                <p id="final-score" class="final-score mb-3"></p>
+                <p id="final-message" class="text-muted mb-0"></p>
+                <button
+                    type="button"
+                    class="btn btn-primary thought-button mt-4"
+                    onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+                >
+                    Try another round
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById("upload-form");
+    const button = document.getElementById("submit-button");
+    const loading = document.getElementById("loading");
+
+    if (form) {
+        form.addEventListener("submit", () => {
+            setTimeout(() => {
+                button.disabled = true;
+                button.textContent = "Generating...";
+                loading.classList.remove("d-none");
+            }, 0);
+        });
+    }
+
+    const questionCards = document.querySelectorAll(".question-card");
+    const scoreBox = document.getElementById("score-box");
+    const scoreElement = document.getElementById("score");
+    const percentageElement = document.getElementById("percentage");
+    const finalResult = document.getElementById("final-result");
+    const finalScore = document.getElementById("final-score");
+    const finalMessage = document.getElementById("final-message");
+
+    let score = 0;
+    let answeredQuestions = 0;
+
+    questionCards.forEach((card) => {
+        const correctAnswer = card.dataset.answer;
+        const checkButton = card.querySelector(".submit-answer");
+        const result = card.querySelector(".result");
+        const resultMessage = card.querySelector(".result-message");
+        const options = card.querySelectorAll(".option");
+
+        checkButton.addEventListener("click", () => {
+            if (card.dataset.checked === "true") {
+                return;
+            }
+
+            const selected = card.querySelector(
+                'input[type="radio"]:checked'
+            );
+
+            if (!selected) {
+                alert("Choose an answer before checking.");
+                return;
+            }
+
+            const selectedAnswer = selected.value;
+
+            card.dataset.checked = "true";
+            answeredQuestions++;
+
+            options.forEach((option) => {
+                option.classList.add("disabled-option");
+                option.querySelector("input").disabled = true;
+            });
+
+            checkButton.disabled = true;
+            checkButton.textContent = "Checked";
+
+            options.forEach((option) => {
+                if (option.dataset.option === correctAnswer) {
+                    option.classList.add("correct");
+                }
+            });
+
+            if (selectedAnswer === correctAnswer) {
+                score++;
+                result.classList.add("correct");
+                resultMessage.textContent = "Correct — that one clicked.";
+            } else {
+                result.classList.add("wrong");
+                resultMessage.textContent =
+                    `Not quite — the correct answer is ${correctAnswer}.`;
+
+                options.forEach((option) => {
+                    if (option.dataset.option === selectedAnswer) {
+                        option.classList.add("wrong");
+                    }
+                });
+            }
+
+            result.style.display = "block";
+            updateScore();
+
+            if (answeredQuestions === questionCards.length) {
+                showFinalResult();
+            }
+        });
+    });
+
+    function updateScore() {
+        const total = questionCards.length;
+        const percentage = total > 0
+            ? Math.round((score / total) * 100)
+            : 0;
+
+        scoreBox.style.display = "block";
+        scoreElement.textContent = `${score} / ${total}`;
+        percentageElement.textContent = `${percentage}%`;
+    }
+
+    function showFinalResult() {
+        const total = questionCards.length;
+        const percentage = total > 0
+            ? Math.round((score / total) * 100)
+            : 0;
+
+        finalResult.classList.remove("d-none");
+        finalScore.textContent = `${score} / ${total} (${percentage}%)`;
+        finalResult.scrollIntoView({ behavior: "smooth" });
+    }
+</script>
+{% endblock %}

@@ -4,6 +4,12 @@ from flask import *
 from flask_login import *
 from flask_mail import Mail
 from database import Database, ASCENDING, DESCENDING
+import json
+from io import BytesIO
+from openai import OpenAI
+from pypdf import PdfReader
+from werkzeug.utils import secure_filename
+
 
 with open("secretkey.txt","r") as f:
     SECRET_KEY = f.read()
@@ -16,6 +22,9 @@ login.login_view = '/login'
 app.config['TESTING'] = False
 db = Database()
 flask_bootstrap.Bootstrap(app)
+
+with open('openrouterapikey.txt', 'r') as f:
+    OPENROUTER_API_KEY = f.read().strip()
 
 @app.context_processor
 def inject_globals():
