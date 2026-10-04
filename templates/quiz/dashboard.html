@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="study-wrap">
+  <h1 class="study-heading">Study</h1>
+  {% set active = 'library' %}{% include "quiz/_nav.html" %}
+
+  <div class="row">
+    <div class="col-lg-6 mb-4">
+      <div class="card study-card h-100"><div class="card-body">
+        <h5 class="card-title">Your PDFs</h5>
+        <form method="post" action="{{ url_for('quiz_upload') }}" enctype="multipart/form-data" class="mb-3">
+          <input type="file" class="form-control mb-2" name="file" accept=".pdf,application/pdf" multiple required>
+          <button class="btn btn-dark btn-sm" type="submit">
+            <span class="material-symbols-outlined align-middle" style="font-size:1.1rem">upload</span> Upload &amp; extract text
+          </button>
+          <small class="text-muted d-block mt-1">Text is extracted on upload and kept as a local .txt file used as context for the AI.</small>
+        </form>
+        {% for d in docs %}
+        <div class="doc-row">
+          <div class="grow">
+            <div class="t" title="{{ d.filename }}">{{ d.title }}</div>
+            <small class="text-muted">{{ d.pages }} pages · {{ '%.0f'|format(d.size / 1024) }} KB · {{ d.uploaded_at|format_timestamp }}</small>
+          </div>
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('quiz_doc_pdf', doc_id=d._id) }}" target="_blank">PDF</a>
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('quiz_doc_text', doc_id=d._id) }}" target="_blank">Text</a>
+          <form method="post" action="{{ url_for('quiz_doc_delete', doc_id=d._id) }}" onsubmit="return confirm('Delete this PDF and its text?')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No PDFs yet.</p>
+        {% endfor %}
+      </div></div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+      <div class="card study-card h-100"><div class="card-body">
+        <h5 class="card-title">Ask the AI for questions</h5>
+        {% if not ai_ready %}
+          <div class="alert alert-warning py-2">AI is not configured on this server (set <code>OPENROUTER_API_KEY</code> or create <code>openrouterapikey.txt</code>). Uploading still works.</div>
+        {% endif %}
+        {% if docs %}
+        <form method="post" action="{{ url_for('quiz_generate') }}" id="gen-form">
+          <div class="mb-2">
+            {% for d in docs %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="docs" value="{{ d._id }}" id="d{{ loop.index }}" {{ 'checked' if loop.first }}>
+              <label class="form-check-label" for="d{{ loop.index }}">{{ d.title }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="form-row">
+            <div class="col-8 mb-2"><input class="form-control" name="title" maxlength="80" placeholder="Quiz name (optional)"></div>
+            <div class="col-4 mb-2"><input class="form-control" type="number" name="count" value="10" min="{{ min_q }}" max="{{ max_q }}" title="Number of questions"></div>
+          </div>
+          <input class="form-control mb-2" name="focus" maxlength="200" placeholder="Focus on… (optional, e.g. chapter 3, photosynthesis)">
+          <button class="btn btn-dark" type="submit" id="gen-btn" {{ 'disabled' if not ai_ready }}>Generate questions</button>
+          <span id="gen-wait" class="text-muted ml-2 d-none">Reading your notes… this can take a minute.</span>
+        </form>
+        <script>document.getElementById('gen-form').addEventListener('submit', function () {
+          setTimeout(function () { document.getElementById('gen-btn').disabled = true; document.getElementById('gen-wait').classList.remove('d-none'); }, 0);
+        });</script>
+        {% else %}
+        <p class="text-muted mb-0">Upload a PDF to get started.</p>
+        {% endif %}
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card study-card"><div class="card-body">
+    <h5 class="card-title">Saved quizzes</h5>
+    {% for s in sets %}
+    <div class="set-row">
+      <div class="grow">
+        <div class="t">{{ s.title }}</div>
+        <small class="text-muted">{{ s.questions|length }} questions · {{ s.created_at|format_timestamp }}{% if s.doc_titles %} · {{ s.doc_titles|join(', ') }}{% endif %}</small>
+      </div>
+      <a class="btn btn-sm btn-dark" href="{{ url_for('quiz_take', set_id=s._id) }}">Take</a>
+      <form method="post" action="{{ url_for('quiz_set_delete', set_id=s._id) }}" onsubmit="return confirm('Delete this quiz and its results?')">
+        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">Generated quizzes are stored here so you can retake them.</p>
+    {% endfor %}
+  </div></div>
+</div>
+{% endblock %}

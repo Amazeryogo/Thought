@@ -1,0 +1,29 @@
+.study-wrap { max-width: 980px; margin: 0 auto; padding: 0 1rem 4rem; }
+.study-heading { font-family: 'Abril Fatface', cursive; }
+.study-tabs .nav-link { color: inherit; border-radius: 999px; }
+.study-tabs .nav-link.active { background: #1d1d1d; color: #fff; }
+.dark-mode .study-tabs .nav-link.active { background: #3a3a3a; }
+.study-card { border-radius: 1rem; }
+.doc-row, .set-row { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid rgba(128,128,128,.2); }
+.doc-row:last-child, .set-row:last-child { border-bottom: 0; }
+.doc-row .grow, .set-row .grow { flex: 1; min-width: 0; }
+.doc-row .grow .t, .set-row .grow .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-card { border: 1px solid rgba(128,128,128,.25); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+.q-topic { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
+.q-title { font-weight: 700; margin: .25rem 0 1rem; }
+.q-opt { display: block; padding: .7rem .9rem; margin-bottom: .55rem; border: 1.5px solid rgba(128,128,128,.3); border-radius: .75rem; cursor: pointer; }
+.q-opt:hover { border-color: #cf7d42; }
+.q-opt input { margin-right: .6rem; }
+.q-opt.correct { border-color: #5e8d77; background: rgba(94,141,119,.15); }
+.q-opt.wrong { border-color: #ac6a64; background: rgba(172,106,100,.15); }
+.q-opt.locked { pointer-events: none; }
+.q-result { display: none; margin-top: .75rem; padding: .75rem 1rem; border-radius: .6rem; }
+.q-result.correct { background: rgba(94,141,119,.15); }
+.q-result.wrong { background: rgba(172,106,100,.15); }
+.score-sticky { position: sticky; top: .5rem; z-index: 10; margin-bottom: 1rem; }
+.stat-tile { text-align: center; padding: 1rem; }
+.stat-tile .n { font-size: 2rem; font-weight: 700; }
+.stat-tile .l { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; opacity: .65; }
+.chart-box { position: relative; height: 260px; }
+.chart-box.sm { height: 170px; }
+.dark-mode .btn-outline-dark { color: #fff; border-color: #888; }

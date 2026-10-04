@@ -82,12 +82,14 @@
           <span class="d-lg-none">Upload</span>
         </a>
       </li>
+      {% if quiz_enabled %}
       <li class="nav-item">
         <a class="nav-link d-flex align-items-center" href="/quiz">
           <span class="material-symbols-outlined mr-2">quiz</span>
-          <span class="d-lg-none">quiz</span>
+          <span class="d-lg-none">Study</span>
         </a>
       </li>
+      {% endif %}
     </ul>
     <form class="form-inline my-2 my-lg-0" action="/search" method="get">
       <input class="form-control mr-sm-2 rounded-pill" type="search" placeholder="Search..." aria-label="Search" name="q" value="{{ request.args.get('q', '') }}">

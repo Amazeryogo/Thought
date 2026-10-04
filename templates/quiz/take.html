@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="study-wrap">
+  <h1 class="study-heading">{{ qset.title }}</h1>
+  {% set active = 'library' %}{% include "quiz/_nav.html" %}
+
+  <div class="card score-sticky"><div class="card-body py-2 d-flex justify-content-between">
+    <span>Answered <b id="done">0</b> / {{ questions|length }}</span>
+    <span>Score <b id="score">0</b> <span id="pct" class="text-muted"></span></span>
+  </div></div>
+
+  {% for q in questions %}
+  <div class="q-card" data-id="{{ q.id }}">
+    <div class="q-topic">{{ q.topic }}</div>
+    <div class="q-title">{{ loop.index }}. {{ q.question }}</div>
+    {% for letter in ['A','B','C','D'] %}
+    <label class="q-opt" data-opt="{{ letter }}"><input type="radio" name="q{{ loop.index0 }}-{{ q.id }}" value="{{ letter }}"><b>{{ letter }}.</b> {{ q.options[letter] }}</label>
+    {% endfor %}
+    <button type="button" class="btn btn-sm btn-outline-dark check">Check answer</button>
+    <div class="q-result"><b class="msg"></b><div class="expl mt-1"></div></div>
+  </div>
+  {% endfor %}
+
+  <div id="final" class="card study-card d-none"><div class="card-body text-center">
+    <h4>Quiz complete</h4>
+    <p class="h2" id="final-score"></p>
+    <a class="btn btn-dark" href="{{ url_for('quiz_analytics') }}">See analytics</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('quiz_take', set_id=qset._id) }}">Retake</a>
+  </div></div>
+</div>
+<script>
+(function () {
+  const attemptId = {{ attempt_id|tojson }}, url = {{ url_for('quiz_answer', set_id=qset._id)|tojson }};
+  const cards = document.querySelectorAll('.q-card'), total = cards.length;
+  let done = 0, score = 0;
+  cards.forEach(card => {
+    card.querySelector('.check').addEventListener('click', async function () {
+      const sel = card.querySelector('input:checked');
+      if (!sel) { alert('Choose an answer first.'); return; }
+      this.disabled = true;
+      const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question_id: card.dataset.id, selected: sel.value, attempt_id: attemptId})});
+      if (!res.ok) { this.disabled = false; alert('Could not record that answer.'); return; }
+      const r = await res.json();
+      card.querySelectorAll('.q-opt').forEach(o => {
+        o.classList.add('locked'); o.querySelector('input').disabled = true;
+        if (o.dataset.opt === r.answer) o.classList.add('correct');
+        else if (o.dataset.opt === sel.value) o.classList.add('wrong');
+      });
+      const box = card.querySelector('.q-result');
+      box.classList.add(r.correct ? 'correct' : 'wrong'); box.style.display = 'block';
+      box.querySelector('.msg').textContent = r.correct ? 'Correct!' : 'Not quite — the answer is ' + r.answer + '.';
+      box.querySelector('.expl').textContent = r.explanation;
+      done++; if (r.correct) score++;
+      document.getElementById('done').textContent = done;
+      document.getElementById('score').textContent = score;
+      document.getElementById('pct').textContent = '(' + Math.round(100 * score / done) + '%)';
+      if (done === total) {
+        const f = document.getElementById('final'); f.classList.remove('d-none');
+        document.getElementById('final-score').textContent = score + ' / ' + total + ' (' + Math.round(100 * score / total) + '%)';
+        f.scrollIntoView({behavior: 'smooth'});
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}
