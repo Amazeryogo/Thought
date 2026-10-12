@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="study-wrap">
+  <h1 class="study-heading">Study</h1>
+  {% set active = 'analytics' %}{% include "quiz/_nav.html" %}
+
+  {% if not stats.total %}
+  <div class="card study-card"><div class="card-body text-muted">No answers yet. <a href="{{ url_for('quiz') }}">Take a quiz</a> and your results will show up here.</div></div>
+  {% else %}
+  <div class="row mb-3">
+    <div class="col-4"><div class="card study-card stat-tile"><div class="n">{{ stats.accuracy }}%</div><div class="l">Accuracy</div></div></div>
+    <div class="col-4"><div class="card study-card stat-tile"><div class="n" style="color:#5e8d77">{{ stats.correct }}</div><div class="l">Correct</div></div></div>
+    <div class="col-4"><div class="card study-card stat-tile"><div class="n" style="color:#ac6a64">{{ stats.wrong }}</div><div class="l">Wrong</div></div></div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-7 mb-3"><div class="card study-card"><div class="card-body">
+      <h5>Correct vs wrong by topic</h5>
+      <div class="chart-box"><canvas id="topicChart"></canvas></div>
+    </div></div></div>
+    <div class="col-lg-5 mb-3"><div class="card study-card"><div class="card-body">
+      <h5>Accuracy over time</h5>
+      <div class="chart-box"><canvas id="timeChart"></canvas></div>
+    </div></div></div>
+  </div>
+
+  <h4 class="mt-3">By topic <small class="text-muted">(weakest first)</small></h4>
+  <div class="row">
+    {% for t in stats.topics %}
+    <div class="col-md-6 mb-3"><div class="card study-card"><div class="card-body">
+      <div class="d-flex justify-content-between"><b>{{ t.topic }}</b><span>{{ t.accuracy }}%</span></div>
+      <small class="text-muted">{{ t.correct }} correct · {{ t.wrong }} wrong</small>
+      <div class="chart-box sm mt-2"><canvas id="t{{ loop.index0 }}"></canvas></div>
+    </div></div></div>
+    {% endfor %}
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+  const stats = {{ stats|tojson }};
+  const dark = document.body.classList.contains('dark-mode');
+  Chart.defaults.color = dark ? '#ddd' : '#444';
+  Chart.defaults.borderColor = dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)';
+  const GOOD = '#5e8d77', BAD = '#ac6a64';
+  const pctAxis = {min: 0, max: 100, ticks: {callback: v => v + '%'}};
+  const common = {responsive: true, maintainAspectRatio: false};
+
+  new Chart('topicChart', {type: 'bar', data: {
+    labels: stats.topics.map(t => t.topic),
+    datasets: [{label: 'Correct', data: stats.topics.map(t => t.correct), backgroundColor: GOOD},
+               {label: 'Wrong', data: stats.topics.map(t => t.wrong), backgroundColor: BAD}]},
+    options: {...common, scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true, ticks: {precision: 0}}}}});
+
+  const line = (id, rows, color) => new Chart(id, {type: 'line', data: {
+    labels: rows.map(r => r.label),
+    datasets: [{label: 'Accuracy', data: rows.map(r => r.accuracy), borderColor: color, backgroundColor: color, tension: .25, pointRadius: 4}]},
+    options: {...common, plugins: {legend: {display: false}}, scales: {y: pctAxis}}});
+
+  line('timeChart', stats.timeline, '#cf7d42');
+  stats.topics.forEach((t, i) => line('t' + i, t.trend, t.accuracy >= 70 ? GOOD : BAD));
+  </script>
+  {% endif %}
+</div>
+{% endblock %}
